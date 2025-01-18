@@ -3,5 +3,6 @@
         "src/python",
         "ext",
         "tests"
-    ]
+    ],
+    "cmake.sourceDirectory": "/home/ragnar/Documents/gem5/ext/dramsys"
 }

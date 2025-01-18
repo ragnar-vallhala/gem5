@@ -1,3 +1,4 @@
+sim_prog/
 build
 gem5_build
 parser.out
