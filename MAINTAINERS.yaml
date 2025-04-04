@@ -281,3 +281,8 @@ website:
         - Bobby R. Bruce <bbruce@ucdavis.edu>
     experts:
         - Jason Lowe-Power <jason@lowepower.com>
+avr:
+    desc: Adding AVR support to gem5
+    status: maintained
+    maintainers:
+        - Ashutosh Vishwakrma (ashutoshvishwakarma208@gmail.com)
