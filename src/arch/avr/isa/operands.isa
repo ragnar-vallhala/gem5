@@ -1,0 +1,99 @@
+// -*- mode:c++ -*-
+
+def operand_types {{
+    'sb' : 'int8_t',
+    'ub' : 'uint8_t',
+    'sw' : 'int16_t',
+    'uw' : 'uint16_t',
+    'pc' : 'AvrISA::PCState'
+}};
+
+let {{
+    # Sorting indices
+    srtNormal = 5
+    srtSREG = 4
+    srtBase = 3
+    srtPC = 2
+    srtMode = 1
+    srtEPC = 0
+
+    class IntReg(IntRegOp):
+        def __init__(self, idx, id=srtNormal):
+            super().__init__('ub', idx, 'IsInteger', id)
+
+    class PCStateReg(PCStateOp):
+        def __init__(self, idx, id):
+            super().__init__('pc', idx, (None, None, 'IsControl'), id)
+
+    class StatusRegOp(IntRegOp):
+        def __init__(self, idx, id=srtSREG):
+            super().__init__('ub', idx, 'IsInteger', id)
+
+    class MemReg(MemOp):
+        def __init__(self, ctype='ub', flags=None, sort_pri=srtNormal):
+            super().__init__(ctype, None, flags if flags else ('IsMemRef',), sort_pri)
+}};
+
+def operands {{
+    # General Purpose Registers
+    'Rd': IntReg('RD'),
+    'Rr': IntReg('RR'),
+    'R': IntReg('R'),
+
+    # Status Register
+    'SREG': StatusRegOp('MISCREG_SREG'),
+
+    # Program Counter
+    'PC': PCStateReg('pc', srtPC),
+    'NPC': PCStateReg('npc', srtPC),
+
+    # Fixed index registers
+    'R0': IntReg('0'),
+    'R1': IntReg('1'),
+    'R2': IntReg('2'),
+    'R3': IntReg('3'),
+    'R4': IntReg('4'),
+    'R5': IntReg('5'),
+    'R6': IntReg('6'),
+    'R7': IntReg('7'),
+    'R8': IntReg('8'),
+    'R9': IntReg('9'),
+    'R10': IntReg('10'),
+    'R11': IntReg('11'),
+    'R12': IntReg('12'),
+    'R13': IntReg('13'),
+    'R14': IntReg('14'),
+    'R15': IntReg('15'),
+    'R16': IntReg('16'),
+    'R17': IntReg('17'),
+    'R18': IntReg('18'),
+    'R19': IntReg('19'),
+    'R20': IntReg('20'),
+    'R21': IntReg('21'),
+    'R22': IntReg('22'),
+    'R23': IntReg('23'),
+    'R24': IntReg('24'),
+    'R25': IntReg('25'),
+    'R26': IntReg('26'),
+    'R27': IntReg('27'),
+    'R28': IntReg('28'),
+    'R29': IntReg('29'),
+    'R30': IntReg('30'),
+    'R31': IntReg('31'),
+
+    # Stack Pointer
+    'SP': IntReg('SP_REG_IDX', srtBase),
+
+    # Memory Operands
+    'Mem': MemReg('ub', ('IsMemRef', 'IsLoad', 'IsStore')),
+
+    # SREG Flags
+    'SREG_C': StatusRegOp('MISCREG_SREG_C'),
+    'SREG_Z': StatusRegOp('MISCREG_SREG_Z'),
+    'SREG_N': StatusRegOp('MISCREG_SREG_N'),
+    'SREG_V': StatusRegOp('MISCREG_SREG_V'),
+    'SREG_S': StatusRegOp('MISCREG_SREG_S'),
+    'SREG_H': StatusRegOp('MISCREG_SREG_H'),
+    'SREG_T': StatusRegOp('MISCREG_SREG_T'),
+    'SREG_I': StatusRegOp('MISCREG_SREG_I')
+}};

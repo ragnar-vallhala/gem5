@@ -1,0 +1,21 @@
+let {{
+    # Maximum number of instruction source and destination registers
+    max_inst_regs = {
+        'src_regs': 2,
+        'dest_regs': 1,
+        'misc_regs': 2
+    }
+
+    # Instruction classes
+    class InstAVR(InstObjParams):
+        def __init__(self, name, mnem, opClass):
+            super(InstAVR, self).__init__(name, mnem, opClass)
+
+    class BasicInst(InstAVR):
+        def __init__(self, name, mnem):
+            super(BasicInst, self).__init__(name, mnem, 'IntAluOp')
+
+    class ArithmeticInst(BasicInst):
+        def __init__(self, name, mnem):
+            super(ArithmeticInst, self).__init__(name, mnem)
+}};

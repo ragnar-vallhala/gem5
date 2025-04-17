@@ -1,0 +1,42 @@
+// -*- mode:c++ -*-
+
+// Copyright (c) 2023 The Regents of the University of California
+// All rights reserved.
+
+////////////////////////////////////////////////////////////////////
+//
+// AVR ISA description file.
+//
+////////////////////////////////////////////////////////////////////
+
+//Include the C++ include directives
+##include "includes.isa"
+
+////////////////////////////////////////////////////////////////////
+//
+// Namespace statement.  Everything below this line will be in the
+// gem5::AVRISAInst namespace.
+//
+
+
+namespace AVRISAInst;
+
+    ##include "avrinstobjparams.isa"
+
+    //Include the bitfield definitions
+    ##include "bitfields.isa"
+
+    //Include the operand_types and operand definitions
+    ##include "operands.isa"
+
+    //Templates for the C++ versions of the instructions
+    ##include "templates/templates.isa"
+
+    //Include manually defined instructions
+    ##include "insts/insts.isa"
+
+    //Include the definitions for the instruction formats
+    ##include "formats/formats.isa"
+
+    //Include the decoder definition
+    ##include "decoder/decoder.isa"

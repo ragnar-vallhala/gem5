@@ -3,7 +3,7 @@ from m5.proxy import *
 from m5.SimObject import SimObject
 
 
-class AvrISA(SimObject):
-    type = "AvrISA"
-    cxx_class = "gem5::AvrISA::ISA"
+class AVR(SimObject):
+    type = "AVR"
     cxx_header = "arch/avr/isa.hh"
+    cxx_class = "gem5::AVR"

@@ -1,0 +1,38 @@
+let {{
+    import os
+    import sys
+}};
+
+output header {{
+    #include "arch/avr/types.hh"
+    #include "arch/avr/registers.hh"
+    #include "arch/avr/static_inst.hh"
+    #include "cpu/static_inst.hh"
+    #include "base/loader/symtab.hh"
+    #include "base/trace.hh"
+    #include "cpu/exec_context.hh"
+    #include "mem/packet.hh"
+    #include "sim/faults.hh"
+    #include "arch/avr/pcstate.hh"
+    #include <sstream>
+}};
+
+output decoder {{
+    #include "arch/avr/utility.hh"
+    #include "arch/avr/decoder.hh"
+    #include "base/trace.hh"
+    #include "debug/Decode.hh"
+    #include "arch/avr/pcstate.hh"
+}};
+
+output exec {{
+    #include "arch/avr/utility.hh"
+    #include "arch/avr/types.hh"
+    #include "base/trace.hh"
+    #include "cpu/exec_context.hh"
+    #include "mem/packet.hh"
+    #include "debug/AVR.hh"
+    #include "mem/request.hh"
+    #include "arch/avr/pcstate.hh"
+    #include "sim/faults.hh"
+}};

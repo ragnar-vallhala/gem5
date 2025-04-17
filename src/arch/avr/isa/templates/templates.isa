@@ -1,0 +1,73 @@
+let {{
+    # Define any necessary variables
+    predicateTest = ''
+    header_includes = '''
+        #include "base/loader/symtab.hh"
+        #include <sstream>
+        #include "arch/avr/registers.hh"
+        #include "cpu/reg_class.hh"
+        #include "cpu/exec_context.hh"
+        #include "cpu/trace.hh"
+        using namespace gem5::trace;
+    '''
+}};
+
+def template BasicDeclare {{
+    class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
+    {
+      public:
+        %(class_name)s(gem5::AVRISAInst::MachInst machInst);
+        Fault execute(ExecContext *, gem5::trace::InstRecord *) const override;
+    };
+}};
+
+def template BasicConstructor {{
+    %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
+        : gem5::AVRISAInst::AVRStaticInst("%(mnemonic)s", machInst, %(op_class)s)
+    {
+        %(constructor)s;
+    }
+    void %(class_name)s::advancePC(PCStateBase &pc_state) const{
+        panic("Unknown Instruction");
+
+    }
+}};
+
+def template BasicExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, gem5::trace::InstRecord *traceData) const
+    {
+        %(op_decl)s;
+        %(code)s;
+        return NoFault;
+    }
+}};
+
+def template UnknownDeclare {{
+    class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
+    {
+      public:
+        %(class_name)s(gem5::AVRISAInst::MachInst machInst);
+        Fault execute(ExecContext *, gem5::trace::InstRecord *) const override;
+        void advancePC(PCStateBase &pc_state) const;
+    };
+}};
+
+def template UnknownConstructor {{
+    %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
+        : gem5::AVRISAInst::AVRStaticInst("unknown", machInst, No_OpClass)
+    {
+    }
+}};
+
+def template UnknownExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, gem5::trace::InstRecord *traceData) const
+    {
+        return std::make_shared<gem5::AVRISAInst::UnknownInstFault>();
+    }
+}};
+
+def template UnknownDecode {{
+    return new %(class_name)s(machInst);
+}};

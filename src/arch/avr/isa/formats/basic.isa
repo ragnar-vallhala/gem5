@@ -1,0 +1,9 @@
+def format Basic(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'BasicOp',
+                       {'code': code, 'predicate_test': predicateTest},
+                       opt_args)
+    header_output = BasicDeclare.subst(iop)
+    decoder_output = BasicConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = BasicExecute.subst(iop)
+}}

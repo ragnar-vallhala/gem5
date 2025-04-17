@@ -4,5 +4,9 @@
         "ext",
         "tests"
     ],
-    "cmake.sourceDirectory": "/home/ragnar/Documents/gem5/ext/dramsys"
+    "cmake.sourceDirectory": "/home/ragnar/Documents/gem5/ext/dramsys",
+    "files.associations": {
+        "*.inc": "cpp",
+        "vector": "cpp"
+    }
 }

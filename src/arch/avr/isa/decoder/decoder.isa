@@ -1,0 +1,58 @@
+// decoder.isa
+
+decode OPCODE default Unknown::unknown({{
+    // Use ExecContext for register access
+    PCState pc = xc->pcState();
+    pc.increment();
+    xc->pcState(pc);
+    return std::make_shared<UnknownInstFault>();
+}}) {
+
+    0x3: Add::add({{
+        // Read source registers
+        uint8_t rd = xc->readIntRegOperand(this, 0);
+        uint8_t rr = xc->readIntRegOperand(this, 1);
+        uint8_t result = rd + rr;
+
+        // Read SREG
+        uint8_t sreg = xc->readMiscRegOperand(this, MISCREG_SREG);
+
+        // Update flags
+        updateFlagsAdd(sreg, result, rd, rr);
+
+        // Write results
+        xc->setIntRegOperand(this, 0, result);
+        xc->setMiscRegOperand(this, MISCREG_SREG, sreg);
+
+        // Update PC
+        PCState pc = xc->pcState();
+        pc.increment();
+        xc->pcState(pc);
+
+        return NoFault;
+    }});
+
+    0x6: Sub::sub({{
+        // Read source registers
+        uint8_t rd = xc->readIntRegOperand(this, 0);
+        uint8_t rr = xc->readIntRegOperand(this, 1);
+        uint8_t result = rd - rr;
+
+        // Read SREG
+        uint8_t sreg = xc->readMiscRegOperand(this, MISCREG_SREG);
+
+        // Update flags
+        updateFlagsSub(sreg, result, rd, rr);
+
+        // Write results
+        xc->setIntRegOperand(this, 0, result);
+        xc->setMiscRegOperand(this, MISCREG_SREG, sreg);
+
+        // Update PC
+        PCState pc = xc->pcState();
+        pc.increment();
+        xc->pcState(pc);
+
+        return NoFault;
+    }});
+}

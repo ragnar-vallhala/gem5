@@ -1,0 +1,4 @@
+def bitfield OPCODE    <15:10>;
+def bitfield REG_D     <8:4>;
+def bitfield REG_R     <3:0>;
+def bitfield IMM8      <7:0>;

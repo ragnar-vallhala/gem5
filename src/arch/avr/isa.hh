@@ -1,33 +1,24 @@
 #ifndef __ARCH_AVR_ISA_HH__
 #define __ARCH_AVR_ISA_HH__
 
+#include "arch/avr/registers.hh"
 #include "arch/avr/types.hh"
-#include "arch/generic/isa.hh"
-#include "cpu/reg_class.hh"
+#include "sim/sim_object.hh"
 
 namespace gem5
 {
 
-    namespace AvrISA
-    {
+class AVR : public SimObject
+{
+  public:
+    typedef AVRISAInst::MachInst MachInst;
+    typedef AVRISAInst::ExtMachInst ExtMachInst;
 
-        class ISA : public BaseISA
-        {
-        protected:
-            RegIndex regSize = 32; // AVR has 32 general purpose registers
+    AVR(const Params &p);
 
-        public:
-            using Params = AvrISAParams;
+    void clear();
+};
 
-            ISA(Params *p) : BaseISA(p) {}
-
-            RegId flattenRegId(const RegId &regId) const override
-            {
-                return regId;
-            }
-        };
-
-    } // namespace AvrISA
 } // namespace gem5
 
 #endif // __ARCH_AVR_ISA_HH__

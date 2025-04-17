@@ -1,0 +1,14 @@
+# -*- mode:python -*-
+
+Import('*')
+
+DebugFlag('AVR')
+DebugFlag('AVRInst')
+DebugFlag('AVRDecoder')
+
+Source('utility.cc')
+
+SimObject('AVR.py', sim_objects=['AVR'])
+
+# Generate ISA decoder
+isa_desc = ISADesc('isa/main.isa')
