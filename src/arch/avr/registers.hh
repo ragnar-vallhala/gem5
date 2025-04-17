@@ -9,7 +9,7 @@ namespace gem5
 
     namespace AVRISAInst
     {
-
+        extern const RegClass intRegClass;
         // Number of general purpose registers
         const int NumGPRegs = 32;
 

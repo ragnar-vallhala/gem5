@@ -12,36 +12,6 @@ let {{
     '''
 }};
 
-def template BasicDeclare {{
-    class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
-    {
-      public:
-        %(class_name)s(gem5::AVRISAInst::MachInst machInst);
-        Fault execute(ExecContext *, gem5::trace::InstRecord *) const override;
-    };
-}};
-
-def template BasicConstructor {{
-    %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
-        : gem5::AVRISAInst::AVRStaticInst("%(mnemonic)s", machInst, %(op_class)s)
-    {
-        %(constructor)s;
-    }
-    void %(class_name)s::advancePC(PCStateBase &pc_state) const{
-        panic("Unknown Instruction");
-
-    }
-}};
-
-def template BasicExecute {{
-    Fault
-    %(class_name)s::execute(ExecContext *xc, gem5::trace::InstRecord *traceData) const
-    {
-        %(op_decl)s;
-        %(code)s;
-        return NoFault;
-    }
-}};
 
 def template UnknownDeclare {{
     class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
@@ -50,6 +20,8 @@ def template UnknownDeclare {{
         %(class_name)s(gem5::AVRISAInst::MachInst machInst);
         Fault execute(ExecContext *, gem5::trace::InstRecord *) const override;
         void advancePC(PCStateBase &pc_state) const;
+        std::string generateDisassembly(Addr pc,
+            const loader::SymbolTable *symtab) const override;
     };
 }};
 
@@ -57,6 +29,14 @@ def template UnknownConstructor {{
     %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
         : gem5::AVRISAInst::AVRStaticInst("unknown", machInst, No_OpClass)
     {
+    }
+    std::string %(class_name)s::generateDisassembly(Addr pc,
+    const loader::SymbolTable *symtab) const{
+        panic("Unknown Inst");
+        return "Unknown Inst";
+    }
+    void %(class_name)s::advancePC(PCStateBase &pc_state) const{
+
     }
 }};
 

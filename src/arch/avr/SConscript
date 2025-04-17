@@ -7,6 +7,10 @@ DebugFlag('AVRInst')
 DebugFlag('AVRDecoder')
 
 Source('utility.cc')
+Source('registers.cc')
+Source('faults.cc')
+Source('isa.cc')
+
 
 SimObject('AVR.py', sim_objects=['AVR'])
 

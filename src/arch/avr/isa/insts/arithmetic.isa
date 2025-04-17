@@ -86,6 +86,15 @@ def template AddConstructor {{
         auto &avr_pc = pc_state.as<gem5::AVRISAInst::PCState>();
         avr_pc.advance();
     }
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+        const gem5::loader::SymbolTable *symtab) const
+    {
+        std::stringstream ss;
+        ss << "add r" << (int)bits(machInst, 8, 4)
+           << ", r" << (int)bits(machInst, 3, 0);
+        return ss.str();
+    }
 }};
 
 def template AddExecute {{
@@ -164,6 +173,15 @@ def template SubConstructor {{
     void %(class_name)s::advancePC(PCStateBase &pc_state) const{
         auto &avr_pc = pc_state.as<gem5::AVRISAInst::PCState>();
         avr_pc.advance();
+    }
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+        const gem5::loader::SymbolTable *symtab) const
+    {
+        std::stringstream ss;
+        ss << "sub r" << (int)bits(machInst, 8, 4)
+           << ", r" << (int)bits(machInst, 3, 0);
+        return ss.str();
     }
 }};
 
