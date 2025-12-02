@@ -11,8 +11,14 @@ Source('registers.cc')
 Source('faults.cc')
 Source('isa.cc')
 
+Source('avr_cpu.cc')
+Source('avr_mmu.cc')
+Source('avr_interrupts.cc')
 
 SimObject('AVR.py', sim_objects=['AVR'])
+SimObject('AVRCPU.py', sim_objects=['AVRCPU'])
+SimObject('AVRMMU.py', sim_objects=['AVRMMU'])
+SimObject('AVRInterrupts.py', sim_objects=['AVRInterrupts'])
 
 # Generate ISA decoder
 isa_desc = ISADesc('isa/main.isa')
