@@ -1,88 +1,85 @@
 #include "arch/avr/avr_cpu.hh"
-#include "params/AVRCPU.hh"
-#include "mem/packet.hh"
-#include "sim/system.hh"
 #include "base/logging.hh"
-#include <iostream>
+#include "mem/packet.hh"
+#include "params/AVRCPU.hh"
+#include "sim/system.hh"
 
-namespace gem5
-{
+namespace gem5 {
 
-    AVRCPU::AVRCPU(const AVRCPUParams &p)
-        : BaseCPU(p),
-          instPort(name() + ".inst_port", this),
-          dataPort(name() + ".data_port", this),
-          ArchMMU(p.ArchMMU),
-          ArchInterrupts(p.ArchInterrupts),
-          insts(0),
-          ops(0)
-    {
-        if (!ArchInterrupts)
-        {
-            warn("AVRCPU: No valid AVRInterrupts object bound to CPU.\n");
-        }
+AVRCPU::AVRCPU(const AVRCPUParams &p)
+    : BaseCPU(p), instPort(name() + ".inst_port", this),
+      dataPort(name() + ".data_port", this),
+      ArchMMU(dynamic_cast<AVRMMU *>(p.mmu)),
+      ArchInterrupts(p.interrupts.empty()
+                         ? nullptr
+                         : dynamic_cast<AVRInterrupts *>(p.interrupts[0])),
+      tickEvent([this] { tick(); }, name() + ".tickEvent"), insts(0), ops(0) {
+  if (!ArchInterrupts) {
+    warn("AVRCPU: No valid AVRInterrupts object bound to CPU.\n");
+  }
+
+  warn("numThreads: %d", numThreads);
+  warn("isa size: %d", p.isa.size());
+  warn("decoder size: %d", p.decoder.size());
+  warn("workload size: %d", p.workload.size());
+
+  for (ThreadID tid = 0; tid < numThreads; tid++) {
+    if (p.workload.size() > tid) {
+      threadContexts.push_back(new SimpleThread(this, tid, p.system,
+                                                p.workload[tid], p.mmu,
+                                                p.isa[tid], p.decoder[tid]));
+    } else {
+      threadContexts.push_back(new SimpleThread(this, tid, p.system, p.mmu,
+                                                p.isa[tid], p.decoder[tid]));
     }
+  }
+}
 
-    /********************* CPU EXECUTION ************************/
+/********************* CPU EXECUTION ************************/
 
-    void AVRCPU::executeInstruction()
-    {
-        ThreadContext *tc = threadContexts[0];
+void AVRCPU::wakeup(ThreadID tid) {
+  if (threadContexts[tid]->status() == ThreadContext::Suspended) {
+    threadContexts[tid]->activate();
+  }
+}
 
-        Addr pc = tc->pcState().instAddr();
-
-        // Fetch 1 byte from memory
-        uint8_t instr = system->physProxy.read<uint8_t>(pc);
-
-        std::cout << "[AVR] PC=" << std::hex << pc
-                  << " INSTR=0x" << (int)instr << std::dec << std::endl;
-
-        insts++;
-        ops++;
-
-        // For now increment PC by 1 byte
-        tc->pcState(pc + 1);
+void AVRCPU::startup() {
+  BaseCPU::startup();
+  for (ThreadID tid = 0; tid < numThreads; tid++) {
+    if (threadContexts[tid]->status() == ThreadContext::Active) {
+      if (!tickEvent.scheduled()) {
+        schedule(tickEvent, clockEdge(Cycles(1)));
+      }
+      break;
     }
+  }
+}
 
-    void AVRCPU::tick()
-    {
-        executeInstruction();
-    }
+void AVRCPU::tick() {
+  executeInstruction();
 
-    /********************* INSTRUCTION PORT ************************/
+  // Schedule next tick if active
+  if (threadContexts[0]->status() == ThreadContext::Active) {
+    schedule(tickEvent, clockEdge(Cycles(1)));
+  }
+}
 
-    Tick AVRCPU::AVRInstPort::recvAtomic(PacketPtr pkt)
-    {
-        // 1 cycle latency for instruction fetches
-        return 1;
-    }
+void AVRCPU::executeInstruction() {
+  ThreadContext *tc = threadContexts[0];
 
-    /********************* DATA PORT ************************/
+  Addr pc = tc->pcState().instAddr();
 
-    Tick AVRCPU::AVRDataPort::recvAtomic(PacketPtr pkt)
-    {
-        // 1 cycle latency for loads/stores
-        return 1;
-    }
-    AddrRangeList AVRCPU::AVRInstPort::getAddrRanges() const
-    {
-        // Example: AVR ATmega328P has 32KB flash
-        AddrRangeList ranges;
-        ranges.push_back(RangeSize(0x0000, 32 * 1024));
-        return ranges;
-    }
-    AddrRangeList AVRCPU::AVRDataPort::getAddrRanges() const
-    {
-        AddrRangeList ranges;
+  // Fetch 1 byte from memory
+  uint8_t instr = system->physProxy.read<uint8_t>(pc);
 
-        // Example ranges:
-        // 0x0000–0x08FF : SRAM (2KB)
-        // 0x2000–0x20FF : IO (256B)
+  std::cout << "[AVR] PC=" << std::hex << pc << " INSTR=0x" << (int)instr
+            << std::dec << std::endl;
 
-        ranges.push_back(RangeSize(0x0000, 2048)); // SRAM
-        ranges.push_back(RangeSize(0x2000, 256));  // I/O registers
+  insts++;
+  ops++;
 
-        return ranges;
-    }
+  // For now increment PC by 1 byte
+  tc->pcState(pc + 1);
+}
 
 } // namespace gem5

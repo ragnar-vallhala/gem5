@@ -1,6 +1,9 @@
 # src/arch/avr/AVRCPU.py
 
+from m5.objects import MasterPort
+from m5.objects.AVRDecoder import AVRDecoder
 from m5.objects.AVRInterrupts import AVRInterrupts
+from m5.objects.AVRISA import AVRISA
 from m5.objects.AVRMMU import AVRMMU
 from m5.objects.BaseCPU import BaseCPU
 from m5.params import Param
@@ -16,7 +19,12 @@ class AVRCPU(BaseCPU):
     cxx_class = "gem5::AVRCPU"
     cxx_header = "arch/avr/avr_cpu.hh"
 
-    ArchMMU = Param.AVRMMU(AVRMMU(), "Dummy AVR MMU")
-    ArchInterrupts = Param.AVRInterrupts(
-        AVRInterrupts(), "Dummy AVR Interrupts"
-    )
+    instPort = MasterPort("Instruction port to connect to memory")
+    dataPort = MasterPort("Data port to connect to memory")
+
+    ArchDecoder = AVRDecoder
+    ArchMMU = AVRMMU
+    ArchInterrupts = AVRInterrupts
+    ArchISA = AVRISA
+
+    mmu = AVRMMU()

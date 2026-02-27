@@ -13,12 +13,17 @@ Source('isa.cc')
 
 Source('avr_cpu.cc')
 Source('avr_mmu.cc')
+Source('avr_tlb.cc')
 Source('avr_interrupts.cc')
+Source('process.cc')
 
-SimObject('AVR.py', sim_objects=['AVR'])
 SimObject('AVRCPU.py', sim_objects=['AVRCPU'])
 SimObject('AVRMMU.py', sim_objects=['AVRMMU'])
+SimObject('AVRTLB.py', sim_objects=['AVRTLB'])
 SimObject('AVRInterrupts.py', sim_objects=['AVRInterrupts'])
+SimObject('AVRISA.py', sim_objects=['AVRISA'])
+SimObject('AVRDecoder.py', sim_objects=['AVRDecoder'])
+SimObject('AVRSeWorkload.py', sim_objects=['AVRSEWorkload'])
 
 # Generate ISA decoder
 isa_desc = ISADesc('isa/main.isa')

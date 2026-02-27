@@ -2,5 +2,6 @@ from m5.objects.BaseISA import BaseISA
 
 
 class AVRISA(BaseISA):
-    instShift = 1  # AVR instructions are 16 bits
-    # define your register file size here
+    type = "AVRISA"
+    cxx_class = "gem5::AVR"
+    cxx_header = "arch/avr/isa.hh"

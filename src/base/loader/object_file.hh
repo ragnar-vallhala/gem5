@@ -52,107 +52,97 @@
 #include "base/types.hh"
 #include "enums/ByteOrder.hh"
 
-namespace gem5
-{
+namespace gem5 {
 
-namespace loader
-{
+namespace loader {
 
-enum Arch
-{
-    UnknownArch,
-    SPARC64,
-    SPARC32,
-    Mips,
-    X86_64,
-    I386,
-    Arm64,
-    Arm,
-    Thumb,
-    Power,
-    Power64,
-    Riscv64,
-    Riscv32
+enum Arch {
+  UnknownArch,
+  SPARC64,
+  SPARC32,
+  Mips,
+  X86_64,
+  I386,
+  Arm64,
+  Arm,
+  Thumb,
+  Power,
+  Power64,
+  Riscv64,
+  Riscv32,
+  Avr
 };
 
 const char *archToString(Arch arch);
 
-enum OpSys
-{
-    UnknownOpSys,
-    Tru64,
-    Linux,
-    Solaris,
-    LinuxArmOABI,
-    LinuxPower64ABIv1,
-    LinuxPower64ABIv2,
-    FreeBSD
+enum OpSys {
+  UnknownOpSys,
+  Tru64,
+  Linux,
+  Solaris,
+  LinuxArmOABI,
+  LinuxPower64ABIv1,
+  LinuxPower64ABIv2,
+  FreeBSD
 };
 
 const char *opSysToString(OpSys op_sys);
 
 class SymbolTable;
 
-class ObjectFile : public ImageFile
-{
-  protected:
-    Arch arch = UnknownArch;
-    OpSys opSys = UnknownOpSys;
-    ByteOrder byteOrder = ByteOrder::little;
+class ObjectFile : public ImageFile {
+protected:
+  Arch arch = UnknownArch;
+  OpSys opSys = UnknownOpSys;
+  ByteOrder byteOrder = ByteOrder::little;
 
-    SymbolTable _symtab;
+  SymbolTable _symtab;
 
-    ObjectFile(ImageFileDataPtr ifd);
+  ObjectFile(ImageFileDataPtr ifd);
 
-  public:
-    virtual ~ObjectFile() {};
+public:
+  virtual ~ObjectFile(){};
 
-    virtual ObjectFile *getInterpreter() const { return nullptr; }
-    virtual bool relocatable() const { return false; }
-    virtual Addr
-    mapSize() const
-    {
-        panic("mapSize() should only be called on relocatable objects\n");
-    }
-    virtual void
-    updateBias(Addr bias_addr)
-    {
-        panic("updateBias() should only be called on relocatable objects\n");
-    }
-    virtual Addr bias() const { return 0; }
+  virtual ObjectFile *getInterpreter() const { return nullptr; }
+  virtual bool relocatable() const { return false; }
+  virtual Addr mapSize() const {
+    panic("mapSize() should only be called on relocatable objects\n");
+  }
+  virtual void updateBias(Addr bias_addr) {
+    panic("updateBias() should only be called on relocatable objects\n");
+  }
+  virtual Addr bias() const { return 0; }
 
-    virtual bool hasTLS() { return false; }
+  virtual bool hasTLS() { return false; }
 
-    Arch  getArch()  const { return arch; }
-    OpSys getOpSys() const { return opSys; }
-    ByteOrder getByteOrder() const { return byteOrder; }
+  Arch getArch() const { return arch; }
+  OpSys getOpSys() const { return opSys; }
+  ByteOrder getByteOrder() const { return byteOrder; }
 
-    const SymbolTable &symtab() const { return _symtab; }
+  const SymbolTable &symtab() const { return _symtab; }
 
-  protected:
-    Addr entry = 0;
+protected:
+  Addr entry = 0;
 
-  public:
-    Addr entryPoint() const { return entry; }
+public:
+  Addr entryPoint() const { return entry; }
 };
 
-class ObjectFileFormat
-{
-  protected:
-    ObjectFileFormat();
+class ObjectFileFormat {
+protected:
+  ObjectFileFormat();
 
-  public:
-    ObjectFileFormat(const ObjectFileFormat &) = delete;
-    void operator=(const ObjectFileFormat &) = delete;
+public:
+  ObjectFileFormat(const ObjectFileFormat &) = delete;
+  void operator=(const ObjectFileFormat &) = delete;
 
-    virtual ObjectFile *load(ImageFileDataPtr data) = 0;
+  virtual ObjectFile *load(ImageFileDataPtr data) = 0;
 };
 
-ObjectFile *createObjectFile(const std::string &fname, bool raw=false);
+ObjectFile *createObjectFile(const std::string &fname, bool raw = false);
 
 /** Determine whether the loader::Arch is 64-bit or 32-bit. */
-bool
-archIs64Bit(const Arch arch);
+bool archIs64Bit(const Arch arch);
 
 } // namespace loader
 } // namespace gem5
