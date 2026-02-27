@@ -14,40 +14,11 @@ let {{
     '''
 }};
 
-def format Add(code, *opt_args) {{
-    iop = InstObjParams(name, Name, 'AddOp',
-                       {'code': code,
-                        'predicate_test': predicateTest,
-                        'op_class': 'gem5::enums::IntAlu'
-                       },
-                       opt_args)
-    header_output = AddDeclare.subst(iop)
-    decoder_output = AddConstructor.subst(iop)
-    decode_block = AddDecode.subst(iop)
-    exec_output = AddExecute.subst(iop)
-    disasm_output = AddDisassembly.subst(iop)
-}};
-
-
-def format Arithmetic(code, *opt_args) {{
-    iop = InstObjParams(name, Name, 'ArithmeticOp',
-                       {'code': code,
-                        'predicate_test': predicateTest,
-                        'op_class': 'gem5::enums::IntAlu'
-                       },
-                       opt_args)
-    header_output = ArithmeticDeclare.subst(iop)
-    decoder_output = ArithmeticConstructor.subst(iop)
-    decode_block = ArithmeticDecode.subst(iop)
-    exec_output = ArithmeticExecute.subst(iop)
-    disasm_output = ArithmeticDisassembly.subst(iop)
-}};
-
+// --- Templates ---
 
 def template AddDecode {{
     return new %(class_name)s(machInst);
 }};
-
 
 def template AddDeclare {{
     class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
@@ -63,22 +34,13 @@ def template AddDeclare {{
 
 def template AddConstructor {{
     %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
-        : gem5::AVRISAInst::AVRStaticInst("add", machInst, %(op_class)s)
+        : gem5::AVRISAInst::AVRStaticInst("%(mnemonic)s", machInst, %(op_class)s)
     {
         _numSrcRegs = 0;
         _numDestRegs = 0;
 
-        // Source registers: Rd and Rr
-        setSrcRegIdx(_numSrcRegs++,
-            RegId(gem5::AVRISAInst::intRegClass, bits(machInst, 8, 4)));  // Rd
-        setSrcRegIdx(_numSrcRegs++,
-            RegId(gem5::AVRISAInst::intRegClass, bits(machInst, 3, 0)));  // Rr
-
-        // Destination register: Rd
-        setDestRegIdx(_numDestRegs++,
-            RegId(gem5::AVRISAInst::intRegClass, bits(machInst, 8, 4)));
-
-        // Set flags
+        // Source registers depend on instruction
+        // We set num registers in formats or specific constructors if needed
         flags[IsInteger] = true;
     }
 
@@ -86,14 +48,12 @@ def template AddConstructor {{
         auto &avr_pc = pc_state.as<gem5::AVRISAInst::PCState>();
         avr_pc.advance();
     }
+
     std::string
     %(class_name)s::generateDisassembly(gem5::Addr pc,
         const gem5::loader::SymbolTable *symtab) const
     {
-        std::stringstream ss;
-        ss << "add r" << (int)bits(machInst, 8, 4)
-           << ", r" << (int)bits(machInst, 3, 0);
-        return ss.str();
+        return "%(mnemonic)s"; // Stub
     }
 }};
 
@@ -101,30 +61,22 @@ def template AddExecute {{
     Fault
     %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
     {
-        // Read source registers
-        uint8_t rd = xc->getRegOperand(this, srcRegIdx(0));  // Changed to getRegOperand
-        uint8_t rr = xc->getRegOperand(this, srcRegIdx(1));  // Changed to getRegOperand
-        uint8_t result = rd + rr;
+        uint8_t rd_idx = bits(machInst, 8, 4);
+        uint8_t rr_idx = (bits(machInst, 9, 9) << 4) | bits(machInst, 3, 0);
 
-        // Read SREG
-        uint8_t sreg = xc->readMiscRegOperand(this, AVRISAInst::MISCREG_SREG);
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t result = (uint8_t)rd + (uint8_t)rr;
 
-        // Update flags
-        AVRISAInst::updateFlagsAdd(sreg, result, rd, rr);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        AVRISAInst::updateFlagsAdd(sreg, result, (uint8_t)rd, (uint8_t)rr);
 
-        // Write results
-        xc->setRegOperand(this, destRegIdx(0), result);  // Changed to setRegOperand
-        xc->setMiscRegOperand(this, AVRISAInst::MISCREG_SREG, sreg);
-
-        auto pc = xc->pcState().as<gem5::AVRISAInst::PCState>();
-        pc.advance();
-        xc->pcState(pc);
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
 
         return NoFault;
     }
 }};
-
-
 
 def template AddDisassembly {{
     std::string
@@ -154,20 +106,6 @@ def template SubConstructor {{
     %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
         : gem5::AVRISAInst::AVRStaticInst("sub", machInst, %(op_class)s)
     {
-        _numSrcRegs = 0;
-        _numDestRegs = 0;
-
-        // Source registers: Rd and Rr
-        setSrcRegIdx(_numSrcRegs++,
-            RegId(gem5::AVRISAInst::intRegClass, bits(machInst, 8, 4)));  // Rd
-        setSrcRegIdx(_numSrcRegs++,
-            RegId(gem5::AVRISAInst::intRegClass, bits(machInst, 3, 0)));  // Rr
-
-        // Destination register: Rd
-        setDestRegIdx(_numDestRegs++,
-            RegId(gem5::AVRISAInst::intRegClass, bits(machInst, 8, 4)));
-
-        // Set flags
         flags[IsInteger] = true;
     }
     void %(class_name)s::advancePC(PCStateBase &pc_state) const{
@@ -180,7 +118,7 @@ def template SubConstructor {{
     {
         std::stringstream ss;
         ss << "sub r" << (int)bits(machInst, 8, 4)
-           << ", r" << (int)bits(machInst, 3, 0);
+           << ", r" << (int)((bits(machInst, 9, 9) << 4) | bits(machInst, 3, 0));
         return ss.str();
     }
 }};
@@ -189,25 +127,18 @@ def template SubExecute {{
     Fault
     %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
     {
-        // Read source registers
-        uint8_t rd = xc->getRegOperand(this, srcRegIdx(0));  // Changed to getRegOperand
-        uint8_t rr = xc->getRegOperand(this, srcRegIdx(1));  // Changed to getRegOperand
-        uint8_t result = rd - rr;
+        uint8_t rd_idx = bits(machInst, 8, 4);
+        uint8_t rr_idx = (bits(machInst, 9, 9) << 4) | bits(machInst, 3, 0);
 
-        // Read SREG
-        uint8_t sreg = xc->readMiscRegOperand(this, AVRISAInst::MISCREG_SREG);
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t result = (uint8_t)rd - (uint8_t)rr;
 
-        // Update flags
-        AVRISAInst::updateFlagsSub(sreg, result, rd, rr);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, (uint8_t)rr);
 
-        // Write results
-        xc->setRegOperand(this, destRegIdx(0), result);  // Changed to setRegOperand
-        xc->setMiscRegOperand(this, AVRISAInst::MISCREG_SREG, sreg);
-
-        // Update PC
-        auto pc = xc->pcState().as<gem5::AVRISAInst::PCState>();  // Make a copy
-        pc.advance();
-        xc->pcState(pc);  // Set the new state
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
 
         return NoFault;
     }
@@ -225,14 +156,75 @@ def template SubDisassembly {{
     }
 }};
 
-
 def template SubDecode {{
     return new %(class_name)s(machInst);
 }};
 
+def template AdiwDeclare {{
+    class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
+    {
+      public:
+        %(class_name)s(gem5::AVRISAInst::MachInst machInst);
+        Fault execute(ExecContext *, trace::InstRecord *) const override;
+        std::string generateDisassembly(gem5::Addr pc,
+            const gem5::loader::SymbolTable *symtab) const override;
+        void advancePC(PCStateBase &pc_state) const;
+    };
+}};
+
+def template AdiwExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_base = 24 + (ADIW_D << 1);
+        uint8_t imm = (ADIW_KH << 4) | ADIW_KL;
+
+        RegVal low = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_base));
+        RegVal high = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_base + 1));
+
+        uint16_t val = (high << 8) | low;
+        uint16_t res = val + imm;
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base), res & 0xFF);
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base + 1), (res >> 8) & 0xFF);
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        if (res < val) sreg |= (1 << AVRISAInst::SREG_C);
+        else sreg &= ~(1 << AVRISAInst::SREG_C);
+        if (res == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (res & 0x8000) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        if (!(val & 0x8000) && (res & 0x8000)) sreg |= (1 << AVRISAInst::SREG_V);
+        else sreg &= ~(1 << AVRISAInst::SREG_V);
+        if (((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1))
+            sreg |= (1 << AVRISAInst::SREG_S);
+        else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+// --- Formats ---
+
+def format Add(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'add'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = AddExecute.subst(iop)
+    disasm_output = AddDisassembly.subst(iop)
+}};
 
 def format Sub(code, *opt_args) {{
-    iop = InstObjParams(name, Name, 'SubOp',
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
                        {'code': code,
                         'predicate_test': predicateTest,
                         'op_class': 'gem5::enums::IntAlu'
@@ -243,4 +235,17 @@ def format Sub(code, *opt_args) {{
     decode_block = SubDecode.subst(iop)
     exec_output = SubExecute.subst(iop)
     disasm_output = SubDisassembly.subst(iop)
+}};
+
+def format Adiw(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu'
+                       },
+                       opt_args)
+    header_output = AdiwDeclare.subst(iop)
+    decoder_output = SubConstructor.subst(iop)
+    decode_block = SubDecode.subst(iop)
+    exec_output = AdiwExecute.subst(iop)
 }};

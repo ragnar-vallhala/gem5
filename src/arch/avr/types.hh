@@ -19,15 +19,15 @@ typedef int16_t int16;
 typedef int32_t int32;
 
 // Machine instruction type
-typedef uint16_t MachInst;
+typedef uint32_t MachInst;
 typedef uint32_t ExtMachInst;
 
 // Address type
-typedef uint16_t Addr;
+typedef uint32_t Addr;
 
 // Register types
 typedef uint8_t RegVal;  // General purpose register value
-typedef uint16_t PCVal;  // Program counter value
+typedef uint32_t PCVal;  // Program counter value
 typedef uint16_t SPVal;  // Stack pointer value
 typedef uint8_t SREGVal; // Status register value
 

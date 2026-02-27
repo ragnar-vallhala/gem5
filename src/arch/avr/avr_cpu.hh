@@ -73,13 +73,28 @@ protected:
     const PCStateBase &pcState() const override { return thread->pcState(); }
     void pcState(const PCStateBase &val) override { thread->pcState(val); }
 
+    Fault readMem(Addr addr, uint8_t *data, unsigned int size,
+                  Request::Flags flags,
+                  const std::vector<bool> &byte_enable) override {
+      for (unsigned int i = 0; i < size; i++) {
+        data[i] = thread->getSystemPtr()->physProxy.read<uint8_t>(addr + i);
+      }
+      return NoFault;
+    }
+
     Fault writeMem(uint8_t *data, unsigned int size, Addr addr,
                    Request::Flags flags, uint64_t *res,
                    const std::vector<bool> &byte_enable) override {
-      panic("AVRExecContext::writeMem not implemented");
+      for (unsigned int i = 0; i < size; i++) {
+        thread->getSystemPtr()->physProxy.write<uint8_t>(addr + i, data[i]);
+      }
+      if (res)
+        *res = 0;
+      return NoFault;
     }
-    Fault initiateMemMgmtCmd(Request::Flags flags) override {
-      panic("AVRExecContext::initiateMemMgmtCmd not implemented");
+
+    gem5::Fault initiateMemMgmtCmd(gem5::Request::Flags flags) override {
+      return NoFault;
     }
     void setStCondFailures(unsigned int sc_failures) override {}
     unsigned int readStCondFailures() const override { return 0; }

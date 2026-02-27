@@ -64,6 +64,7 @@ void AVRCPU::startup() {
 }
 
 void AVRCPU::tick() {
+  baseStats.numCycles++;
   executeInstruction();
 
   // Schedule next tick if active
@@ -126,6 +127,8 @@ void AVRCPU::executeInstruction() {
   } else {
     insts++;
     ops++;
+    baseStats.numInsts++;
+    baseStats.numOps++;
     // Advance PC based on the instruction
     PCStateBase *pc_state = tc->pcState().clone();
     inst->advancePC(*pc_state);

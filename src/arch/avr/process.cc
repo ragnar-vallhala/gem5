@@ -1,5 +1,6 @@
 #include "arch/avr/process.hh"
 
+#include "arch/avr/registers.hh"
 #include "base/loader/object_file.hh"
 #include "base/logging.hh"
 #include "cpu/thread_context.hh"
@@ -38,10 +39,10 @@ void AVRProcess::initState() {
 }
 
 void AVRProcess::argsInit(int pageSize) {
-  // Very simple stack setup: just set the stack pointer and PC.
-  // AVR is a bare-metal microcontroller and typically doesn't use argc/argv.
+  // Very simple stack setup: set SP to stack base and PC to entry point.
   ThreadContext *tc = system->threads[contextIds[0]];
   tc->pcState(getStartPC());
+  tc->setMiscReg(AVRISAInst::MISCREG_SP, memState->getStackBase());
 }
 
 // -----------------------------------------------------------------------

@@ -1,76 +1,201 @@
 // decoder.isa
 
-decode OPCODE default Unimplemented::decode_default({{
-    // Default: unknown instruction — UnknownInstFault advances PC
-    return std::make_shared<UnknownInstFault>();
+decode OPCODE default Unimplemented::opcode_default({{
+    return nullptr;
 }}) {
 
-    // NOP: instruction word 0x0000
-    // OPCODE=0x0 (bits[15:10]=000000)
-    0x0: Basic::nop({{
-        // No operation; advancePC handles the PC increment
-    }});
-    0x3: Add::add({{
-        // Read source registers
-        uint8_t rd = xc->readIntRegOperand(this, 0);
-        uint8_t rr = xc->readIntRegOperand(this, 1);
-        uint8_t result = rd + rr;
-
-        // Read SREG
-        uint8_t sreg = xc->readMiscRegOperand(this, MISCREG_SREG);
-
-        // Update flags
-        updateFlagsAdd(sreg, result, rd, rr);
-
-        // Write results
-        xc->setIntRegOperand(this, 0, result);
-        xc->setMiscRegOperand(this, MISCREG_SREG, sreg);
-
-        // Update PC
-        PCState pc = xc->pcState();
-        pc.increment();
-        xc->pcState(pc);
-
-        return NoFault;
+    0x0: Basic::nop({{ }});
+    0x0b: Basic::mov({{
+        uint8_t rr_idx = (MOV_RH << 4) | MOV_RL;
+        uint8_t rd_idx = MOV_D;
+        RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), val);
     }});
 
-    0x6: Sub::sub({{
-        // Read source registers
-        uint8_t rd = xc->readIntRegOperand(this, 0);
-        uint8_t rr = xc->readIntRegOperand(this, 1);
-        uint8_t result = rd - rr;
+    0x09: Basic::eor({{
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd_val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr_val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        RegVal res = rd_val ^ rr_val;
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), res);
 
-        // Read SREG
-        uint8_t sreg = xc->readMiscRegOperand(this, MISCREG_SREG);
-
-        // Update flags
-        updateFlagsSub(sreg, result, rd, rr);
-
-        // Write results
-        xc->setIntRegOperand(this, 0, result);
-        xc->setMiscRegOperand(this, MISCREG_SREG, sreg);
-
-        // Update PC
-        PCState pc = xc->pcState();
-        pc.increment();
-        xc->pcState(pc);
-
-        return NoFault;
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        if (res == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (res & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        sreg &= ~(1 << AVRISAInst::SREG_V);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
     }});
 
-    // AVR SLEEP (0x9588), JMP (0x940c), CALL (0x940e) share OPCODE 0x25 (100101)
-    0x25: decode OP_EXTRA {
-        0x4: decode LOW_WORD default Unimplemented::op25_extra_default({{
-            return std::make_shared<UnknownInstFault>();
-        }}) {
-            0x9588: Basic::sleep({{
-                return std::make_shared<gem5::AVRISAInst::HaltFault>();
+    0x3: Add::add({{ }});
+    0x6: Sub::sub({{ }});
+
+    0x30, 0x31, 0x32, 0x33: RelativeJump::rjmp({{ }});
+    0x34, 0x35, 0x36, 0x37: RelativeJump::rcall({{ }});
+
+    0x2c, 0x2d: decode IO_AH {
+        default: Basic::in_instr({{
+            uint8_t addr = (IO_AH << 4) | IO_AL;
+            uint8_t rd = IO_D;
+            uint8_t val;
+            xc->readMem(0x20 + addr, &val, 1, 0, {});
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), val);
+        }});
+    }
+
+    0x2e, 0x2f: decode IO_AH {
+        default: Basic::out_instr({{
+            uint8_t addr = (IO_AH << 4) | IO_AL;
+            uint8_t rr = IO_D;
+            RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr));
+            uint8_t val8 = (uint8_t)val;
+            xc->writeMem(&val8, 1, 0x20 + addr, 0, nullptr, {});
+        }});
+    }
+
+    0x38, 0x39, 0x3a, 0x3b: Basic::ldi({{
+        uint8_t imm = (LDI_KH << 4) | LDI_KL;
+        uint8_t rd = 16 + LDI_D;
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), imm);
+    }});
+
+    // OPCODE 0x20, 0x21, 0x22, 0x23: LDD/STD with displacement
+    0x20, 0x21, 0x22, 0x23: decode BIT11 {
+        0x0: decode BIT3 {
+            0x1: decode BIT9 {
+                0x0: Basic::ldd({{
+                    uint8_t q = ((machInst >> 8) & 0x30) | ((machInst >> 7) & 0x08) | (machInst & 0x07);
+                    uint8_t rd = (machInst >> 4) & 0x1F;
+                    RegVal yl = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 28));
+                    RegVal yh = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 29));
+                    Addr addr = (yh << 8) | yl;
+                    uint8_t val;
+                    xc->readMem(addr + q, &val, 1, 0, {});
+                    xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), (RegVal)val);
+                }});
+                0x1: Basic::std({{
+                    uint8_t q = ((machInst >> 8) & 0x30) | ((machInst >> 7) & 0x08) | (machInst & 0x07);
+                    uint8_t rr = (machInst >> 4) & 0x1F;
+                    RegVal yl = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 28));
+                    RegVal yh = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 29));
+                    Addr addr = (yh << 8) | yl;
+                    RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr));
+                    uint8_t val8 = (uint8_t)val;
+                    xc->writeMem(&val8, 1, addr + q, 0, nullptr, {});
+                }});
+                default: Unimplemented::ldd_std_bit9_default({{ return nullptr; }});
+            }
+            default: Unimplemented::ldd_std_bit3_default({{ return nullptr; }});
+        }
+        default: Unimplemented::ldd_std_bit11_default({{ return nullptr; }});
+    }
+
+    0x24: decode REG_R {
+        0x0: decode BIT9 {
+            0x0: Jump::sts({{
+                uint8_t rd = DS_D;
+                RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd));
+                uint8_t val8 = (uint8_t)val;
+                Addr addr = DS_K;
+                xc->writeMem(&val8, 1, addr, 0, nullptr, {});
             }});
+            0x1: Jump::lds({{
+                uint8_t rd = DS_D;
+                Addr addr = DS_K;
+                uint8_t val8;
+                xc->readMem(addr, &val8, 1, 0, {});
+                xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), val8);
+            }});
+            default: Unimplemented::sts_lds_default({{ return nullptr; }});
+        }
+        0xf: decode BIT9 {
+            0x0: Basic::pop({{
+                uint8_t rd = REG_D;
+                Addr sp = xc->readMiscReg(AVRISAInst::MISCREG_SP);
+                uint8_t val8;
+                xc->readMem(sp + 1, &val8, 1, 0, {});
+                xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), (RegVal)val8);
+                xc->setMiscReg(AVRISAInst::MISCREG_SP, sp + 1);
+            }});
+            0x1: Basic::push({{
+                uint8_t rd = REG_D;
+                RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd));
+                uint8_t val8 = (uint8_t)val;
+                Addr sp = xc->readMiscReg(AVRISAInst::MISCREG_SP);
+                xc->writeMem(&val8, 1, sp, 0, nullptr, {});
+                xc->setMiscReg(AVRISAInst::MISCREG_SP, sp - 1);
+            }});
+            default: Unimplemented::push_pop_default({{ return nullptr; }});
+        }
+        0xc: Basic::ld_x({{
+            uint8_t rd = REG_D;
+            RegVal x_l = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 26));
+            RegVal x_h = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 27));
+            Addr addr = (x_h << 8) | x_l;
+            uint8_t val8;
+            xc->readMem(addr, &val8, 1, 0, {});
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), (RegVal)val8);
+        }});
+        0xd: Basic::ld_x_postinc({{
+            uint8_t rd = REG_D;
+            RegVal x_l = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 26));
+            RegVal x_h = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 27));
+            Addr addr = (x_h << 8) | x_l;
+            uint8_t val8;
+            xc->readMem(addr, &val8, 1, 0, {});
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), (RegVal)val8);
+            addr++;
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 26), addr & 0xFF);
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 27), (addr >> 8) & 0xFF);
+        }});
+        0xe: Basic::ld_x_predec({{
+            uint8_t rd = REG_D;
+            RegVal x_l = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 26));
+            RegVal x_h = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 27));
+            Addr addr = ((x_h << 8) | x_l) - 1;
+            uint8_t val8;
+            xc->readMem(addr, &val8, 1, 0, {});
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), (RegVal)val8);
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 26), addr & 0xFF);
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 27), (addr >> 8) & 0xFF);
+        }});
+        default: Unimplemented::op24_default({{ return nullptr; }});
+    }
+
+    0x25: decode OP_EXTRA {
+        0x4: decode OP_IDENT {
+            0x10: Return::ret({{
+                Addr sp = xc->readMiscReg(AVRISAInst::MISCREG_SP);
+                uint8_t low, high;
+                xc->readMem(sp + 1, &low, 1, 0, {});
+                xc->readMem(sp + 2, &high, 1, 0, {});
+                Addr target = (high << 8) | low;
+                xc->setMiscReg(AVRISAInst::MISCREG_SP, sp + 2);
+                gem5::AVRISAInst::PCState pc = xc->pcState().as<gem5::AVRISAInst::PCState>();
+                pc.set(target);
+                xc->pcState(pc);
+            }});
+            0x18: Basic::sleep({{ return std::make_shared<gem5::AVRISAInst::HaltFault>(); }});
+            0x19: Basic::break_instr({{ return std::make_shared<gem5::AVRISAInst::HaltFault>(); }});
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07: Basic::bset({{
+                uint8_t bit = (machInst >> 4) & 0x7;
+                uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+                sreg |= (1 << bit);
+                xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+            }});
+            0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f: Basic::bclr({{
+                uint8_t bit = (machInst >> 4) & 0x7;
+                uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+                sreg &= ~(1 << bit);
+                xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+            }});
+            0x11: Adiw::adiw({{ }});
+            default: Unimplemented::op25_ident_default({{ return nullptr; }});
         }
         0x6: Jump::jmp({{ }});
         0x7: Jump::call({{ }});
-        default: Unimplemented::op25_default({{
-            return std::make_shared<UnknownInstFault>();
-        }});
+        default: Unimplemented::op25_default({{ return nullptr; }});
     }
 }

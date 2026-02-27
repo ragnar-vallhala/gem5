@@ -1,19 +1,6 @@
 // -*- mode:c++ -*-
 
-def format Jump(code, *opt_args) {{
-    iop = InstObjParams(name, Name, 'AVRStaticInst',
-                       {'code': code,
-                        'predicate_test': predicateTest,
-                        'op_class': 'gem5::enums::IntAlu',
-                        'name': name
-                       },
-                       opt_args)
-    header_output = JumpDeclare.subst(iop)
-    decoder_output = JumpConstructor.subst(iop)
-    decode_block = JumpDecode.subst(iop)
-    exec_output = JumpExecute.subst(iop)
-}};
-
+// Define templates first
 def template JumpDecode {{
     return new %(class_name)s(machInst);
 }};
@@ -65,9 +52,18 @@ def template JumpExecute {{
 
         if (std::string("%(name)s") == "call") {
             // Push return address to stack (PC + 4)
-            // Simplified CALL support: just warn but do the jump
-            warn("CALL instruction at 0x%lx: stack push missing",
-                 xc->pcState().instAddr());
+            Addr pc = xc->pcState().instAddr();
+            Addr return_addr = pc + 4;
+            Addr sp = xc->readMiscReg(AVRISAInst::MISCREG_SP);
+
+            uint8_t high = (return_addr >> 8) & 0xFF;
+            uint8_t low = return_addr & 0xFF;
+
+            // Standard AVR: push high then low
+            xc->writeMem(&high, 1, sp, 0, nullptr, {});
+            xc->writeMem(&low, 1, sp - 1, 0, nullptr, {});
+
+            xc->setMiscReg(AVRISAInst::MISCREG_SP, sp - 2);
         }
 
         auto pc = xc->pcState().as<gem5::AVRISAInst::PCState>();
@@ -78,4 +74,84 @@ def template JumpExecute {{
     }
 }};
 
-// Instructions are instantiated in the decoder using the Jump format
+def template RelativeJumpDeclare {{
+    // Already declared in JumpDeclare
+}};
+
+def template RelativeJumpExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        // 12-bit signed offset in words
+        int32_t offset = REL_K;
+        if (offset & 0x800) {
+            offset |= 0xFFFFF000;
+        }
+
+        // Relative to PC + 2
+        Addr pc_val = xc->pcState().instAddr();
+        Addr target = pc_val + 2 + (offset << 1);
+
+        if (std::string("%(name)s") == "rcall") {
+             Addr return_addr = pc_val + 2;
+             Addr sp = xc->readMiscReg(AVRISAInst::MISCREG_SP);
+             uint8_t high = (return_addr >> 8) & 0xFF;
+             uint8_t low = return_addr & 0xFF;
+
+             // Standard AVR: push high then low
+             xc->writeMem(&high, 1, sp, 0, nullptr, {});
+             xc->writeMem(&low, 1, sp - 1, 0, nullptr, {});
+             xc->setMiscReg(AVRISAInst::MISCREG_SP, sp - 2);
+        }
+
+        auto pc = xc->pcState().as<gem5::AVRISAInst::PCState>();
+        pc.set(target);
+        xc->pcState(pc);
+
+        return NoFault;
+    }
+}};
+
+// Then define formats
+def format Jump(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'name': name
+                       },
+                       opt_args)
+    header_output = JumpDeclare.subst(iop)
+    decoder_output = JumpConstructor.subst(iop)
+    decode_block = JumpDecode.subst(iop)
+    exec_output = JumpExecute.subst(iop)
+}};
+
+def format RelativeJump(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'name': name
+                       },
+                       opt_args)
+    header_output = JumpDeclare.subst(iop)
+    header_output += RelativeJumpDeclare.subst(iop)
+    decoder_output = JumpConstructor.subst(iop)
+    decode_block = JumpDecode.subst(iop)
+    exec_output = RelativeJumpExecute.subst(iop)
+}};
+
+def format Return(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'name': name
+                       },
+                       opt_args)
+    header_output = JumpDeclare.subst(iop)
+    decoder_output = JumpConstructor.subst(iop)
+    decode_block = JumpDecode.subst(iop)
+    exec_output = BasicExecute.subst(iop)
+}};

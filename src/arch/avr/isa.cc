@@ -18,7 +18,9 @@ AVR::AVR(const AVRISAParams &p) : BaseISA(p, "avr") {
 }
 
 void AVR::clear() {
-  // Initialize ISA state here if needed
+  for (int i = 0; i < AVRISAInst::NUM_MISCREGS; i++) {
+    miscRegs[i] = 0;
+  }
 }
 
 PCStateBase *AVR::newPCState(Addr new_inst_addr) const {
@@ -26,19 +28,41 @@ PCStateBase *AVR::newPCState(Addr new_inst_addr) const {
 }
 
 RegVal AVR::readMiscRegNoEffect(RegIndex idx) const {
-  return 0; // Stub
+  if (idx == AVRISAInst::SREG_Idx)
+    idx = AVRISAInst::MISCREG_SREG;
+  if (idx == AVRISAInst::SP_Idx)
+    idx = AVRISAInst::MISCREG_SP;
+  if (idx >= AVRISAInst::NUM_MISCREGS)
+    return 0;
+  return miscRegs[idx];
 }
 
 RegVal AVR::readMiscReg(RegIndex idx) {
-  return 0; // Stub
+  if (idx == AVRISAInst::SREG_Idx)
+    idx = AVRISAInst::MISCREG_SREG;
+  if (idx == AVRISAInst::SP_Idx)
+    idx = AVRISAInst::MISCREG_SP;
+  if (idx >= AVRISAInst::NUM_MISCREGS)
+    return 0;
+  return miscRegs[idx];
 }
 
 void AVR::setMiscRegNoEffect(RegIndex idx, RegVal val) {
-  // Stub
+  if (idx == AVRISAInst::SREG_Idx)
+    idx = AVRISAInst::MISCREG_SREG;
+  if (idx == AVRISAInst::SP_Idx)
+    idx = AVRISAInst::MISCREG_SP;
+  if (idx < AVRISAInst::NUM_MISCREGS)
+    miscRegs[idx] = val;
 }
 
 void AVR::setMiscReg(RegIndex idx, RegVal val) {
-  // Stub
+  if (idx == AVRISAInst::SREG_Idx)
+    idx = AVRISAInst::MISCREG_SREG;
+  if (idx == AVRISAInst::SP_Idx)
+    idx = AVRISAInst::MISCREG_SP;
+  if (idx < AVRISAInst::NUM_MISCREGS)
+    miscRegs[idx] = val;
 }
 
 bool AVR::inUserMode() const {

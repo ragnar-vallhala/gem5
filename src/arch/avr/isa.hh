@@ -26,6 +26,9 @@ public:
 
   bool inUserMode() const override;
   void copyRegsFrom(ThreadContext *src) override;
+
+protected:
+  RegVal miscRegs[AVRISAInst::NUM_MISCREGS];
 };
 
 } // namespace gem5

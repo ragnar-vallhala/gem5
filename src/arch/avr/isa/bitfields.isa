@@ -2,6 +2,9 @@ def bitfield OPCODE    <15:10>;
 def bitfield REG_D     <8:4>;
 def bitfield REG_R     <3:0>;
 def bitfield IMM8      <7:0>;
+def bitfield BIT9      <9:9>;
+def bitfield BIT11     <11:11>;
+def bitfield BIT3      <3:3>;
 
 // For 32-bit JMP/CALL
 // machInst is [second_word:first_word]
@@ -11,5 +14,41 @@ def bitfield JMP_H  <8:4>;    // k21:17 from first_word
 def bitfield JMP_M  <0:0>;    // k16 from first_word
 def bitfield JMP_L  <31:16>;  // k15:0 from second_word
 def bitfield OP_EXTRA <3:1>;  // bits 3:1 of first_word
+def bitfield OP_IDENT <9:4>;
 def bitfield LOW_WORD <15:0>;
 def bitfield FULL     <31:0>;
+
+// For LDI: 1110 KKKK dddd KKKK
+def bitfield LDI_KH <11:8>;
+def bitfield LDI_KL <3:0>;
+def bitfield LDI_D  <7:4>;
+
+// For IN/OUT: 1011 0AAd dddd AAAA (A is 6 bits)
+def bitfield IO_AH <10:9>;
+def bitfield IO_AL <3:0>;
+def bitfield IO_D  <8:4>;
+
+// For RJMP/RCALL: 110x KKKK KKKK KKKK
+def bitfield REL_K <11:0>;
+
+// For PUSH/POP: 1001 001d dddd 1111
+def bitfield PUSH_D <8:4>;
+
+// For ADIW: 1001 0110 KKdd KKKK
+def bitfield ADIW_KH <5:4>;
+def bitfield ADIW_KL <3:0>;
+def bitfield ADIW_D  <7:6>;
+
+// For EOR: 0010 01rd dddd rrrr
+def bitfield EOR_RH <9:9>;
+def bitfield EOR_RL <3:0>;
+def bitfield EOR_D  <8:4>;
+
+// For MOV: 0010 11rd dddd rrrr
+def bitfield MOV_RH <9:9>;
+def bitfield MOV_RL <3:0>;
+def bitfield MOV_D  <8:4>;
+
+// For LDS/STS (32-bit): 1001 000d dddd 0000 kkkk kkkk kkkk kkkk
+def bitfield DS_D <8:4>;  // Source or dest register
+def bitfield DS_K <31:16>; // 16-bit address
