@@ -31,9 +31,13 @@ decode OPCODE default Unimplemented::opcode_default({{
 
     0x3: Add::add({{ }});
     0x6: Sub::sub({{ }});
+    0x0c, 0x0d, 0x0e, 0x0f: Cpi::cpi({{ }});
+    0x14, 0x15, 0x16, 0x17: Subi::subi({{ }});
 
     0x30, 0x31, 0x32, 0x33: RelativeJump::rjmp({{ }});
     0x34, 0x35, 0x36, 0x37: RelativeJump::rcall({{ }});
+    0x3c: ConditionalBranch::brbs({{ }});
+    0x3d: ConditionalBranch::brbc({{ }});
 
     0x2c, 0x2d: decode IO_AH {
         default: Basic::in_instr({{
@@ -94,19 +98,19 @@ decode OPCODE default Unimplemented::opcode_default({{
 
     0x24: decode REG_R {
         0x0: decode BIT9 {
-            0x0: Jump::sts({{
-                uint8_t rd = DS_D;
-                RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd));
-                uint8_t val8 = (uint8_t)val;
-                Addr addr = DS_K;
-                xc->writeMem(&val8, 1, addr, 0, nullptr, {});
-            }});
-            0x1: Jump::lds({{
+            0x0: Basic4Byte::lds({{
                 uint8_t rd = DS_D;
                 Addr addr = DS_K;
                 uint8_t val8;
                 xc->readMem(addr, &val8, 1, 0, {});
                 xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), val8);
+            }});
+            0x1: Basic4Byte::sts({{
+                uint8_t rd = DS_D;
+                RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd));
+                uint8_t val8 = (uint8_t)val;
+                Addr addr = DS_K;
+                xc->writeMem(&val8, 1, addr, 0, nullptr, {});
             }});
             default: Unimplemented::sts_lds_default({{ return nullptr; }});
         }

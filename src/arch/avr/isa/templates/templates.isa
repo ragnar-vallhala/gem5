@@ -93,3 +93,45 @@ def template BasicExecute {{
 def template BasicDecode {{
     return new %(class_name)s(machInst);
 }};
+// ---- Basic 4-Byte format templates ----
+
+def template Basic4ByteDeclare {{
+    class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
+    {
+      public:
+        %(class_name)s(gem5::AVRISAInst::MachInst machInst);
+        Fault execute(ExecContext *, gem5::trace::InstRecord *) const override;
+        void advancePC(PCStateBase &pc_state) const;
+        std::string generateDisassembly(Addr pc,
+            const loader::SymbolTable *symtab) const override;
+    };
+}};
+
+def template Basic4ByteConstructor {{
+    %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
+        : gem5::AVRISAInst::AVRStaticInst("%(mnemonic)s", machInst, No_OpClass)
+    {
+    }
+    std::string %(class_name)s::generateDisassembly(Addr pc,
+    const loader::SymbolTable *symtab) const{
+        return "%(mnemonic)s";
+    }
+    void %(class_name)s::advancePC(PCStateBase &pc_state) const {
+        auto &apc = pc_state.as<gem5::AVRISAInst::PCState>();
+        apc.advance();
+        apc.advance();
+    }
+}};
+
+def template Basic4ByteDecode {{
+    return new %(class_name)s(machInst);
+}};
+
+def template Basic4ByteExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, gem5::trace::InstRecord *traceData) const
+    {
+        %(code)s;
+        return NoFault;
+    }
+}};

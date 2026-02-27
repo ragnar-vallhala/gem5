@@ -206,6 +206,45 @@ def template AdiwExecute {{
     }
 }};
 
+def template CpiExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = 16 + LDI_D;
+        uint8_t imm = (LDI_KH << 4) | LDI_KL;
+
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        uint8_t result = (uint8_t)rd - imm;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, imm);
+
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+
+        return NoFault;
+    }
+}};
+
+def template SubiExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = 16 + LDI_D;
+        uint8_t imm = (LDI_KH << 4) | LDI_KL;
+
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        uint8_t result = (uint8_t)rd - imm;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, imm);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+
+        return NoFault;
+    }
+}};
+
 // --- Formats ---
 
 def format Add(code, *opt_args) {{
@@ -248,4 +287,31 @@ def format Adiw(code, *opt_args) {{
     decoder_output = SubConstructor.subst(iop)
     decode_block = SubDecode.subst(iop)
     exec_output = AdiwExecute.subst(iop)
+}};
+def format Cpi(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu'
+                       },
+                       opt_args)
+    header_output = SubDeclare.subst(iop)
+    decoder_output = SubConstructor.subst(iop)
+    decode_block = SubDecode.subst(iop)
+    exec_output = CpiExecute.subst(iop)
+    disasm_output = SubDisassembly.subst(iop)
+}};
+
+def format Subi(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu'
+                       },
+                       opt_args)
+    header_output = SubDeclare.subst(iop)
+    decoder_output = SubConstructor.subst(iop)
+    decode_block = SubDecode.subst(iop)
+    exec_output = SubiExecute.subst(iop)
+    disasm_output = SubDisassembly.subst(iop)
 }};

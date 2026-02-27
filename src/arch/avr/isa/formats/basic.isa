@@ -6,4 +6,14 @@ def format Basic(code, *opt_args) {{
     decoder_output = BasicConstructor.subst(iop)
     decode_block = BasicDecode.subst(iop)
     exec_output = BasicExecute.subst(iop)
-}}
+}};
+
+def format Basic4Byte(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code, 'predicate_test': predicateTest},
+                       opt_args)
+    header_output = Basic4ByteDeclare.subst(iop)
+    decoder_output = Basic4ByteConstructor.subst(iop)
+    decode_block = Basic4ByteDecode.subst(iop)
+    exec_output = Basic4ByteExecute.subst(iop)
+}};

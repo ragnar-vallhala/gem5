@@ -112,6 +112,39 @@ def template RelativeJumpExecute {{
     }
 }};
 
+def template ConditionalBranchExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t s = BR_S;
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        bool set = (sreg >> s) & 1;
+        bool branch = false;
+
+        if (std::string("%(name)s") == "brbs") {
+            if (set) branch = true;
+        } else { // brbc
+            if (!set) branch = true;
+        }
+
+        auto pc = xc->pcState().as<gem5::AVRISAInst::PCState>();
+        if (branch) {
+            int32_t offset = BR_K;
+            if (offset & 0x40) {
+                offset |= 0xFFFFFF80;
+            }
+            Addr pc_val = xc->pcState().instAddr();
+            Addr target = pc_val + 2 + (offset << 1);
+            pc.set(target);
+        } else {
+            pc.advance();
+        }
+        xc->pcState(pc);
+
+        return NoFault;
+    }
+}};
+
 // Then define formats
 def format Jump(code, *opt_args) {{
     iop = InstObjParams(name, Name, 'AVRStaticInst',
@@ -154,4 +187,18 @@ def format Return(code, *opt_args) {{
     decoder_output = JumpConstructor.subst(iop)
     decode_block = JumpDecode.subst(iop)
     exec_output = BasicExecute.subst(iop)
+}};
+
+def format ConditionalBranch(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'name': name
+                       },
+                       opt_args)
+    header_output = JumpDeclare.subst(iop)
+    decoder_output = JumpConstructor.subst(iop)
+    decode_block = JumpDecode.subst(iop)
+    exec_output = ConditionalBranchExecute.subst(iop)
 }};

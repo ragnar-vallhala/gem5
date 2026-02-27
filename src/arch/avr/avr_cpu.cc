@@ -78,19 +78,21 @@ void AVRCPU::executeInstruction() {
   uint8_t high_byte = system->physProxy.read<uint8_t>(pc + 1);
   AVRISAInst::ExtMachInst machInst = (high_byte << 8) | low_byte;
 
-  // Check if it's a 32-bit instruction (JMP or CALL)
-  // JMP: 1001 010k kkkk 110k (0x940c)
-  // CALL: 1001 010k kkkk 111k (0x940e)
-  // These share the 1001 010x xxxx 11xx pattern
-  if ((machInst & 0xfe0c) == 0x940c) {
+  // Check if it's a 32-bit instruction
+  // JMP/CALL: 1001 010x xxxx 11xx (0x940c/0x940e)
+  // LDS: 1001 000d dddd 0000 (0x9000)
+  // STS: 1001 001d dddd 0000 (0x9200)
+  if (((machInst & 0xfe0c) == 0x940c) || ((machInst & 0xfe0f) == 0x9000) ||
+      ((machInst & 0xfe0f) == 0x9200)) {
     uint8_t low_byte2 = system->physProxy.read<uint8_t>(pc + 2);
     uint8_t high_byte2 = system->physProxy.read<uint8_t>(pc + 3);
     uint32_t second_word = (high_byte2 << 8) | low_byte2;
     machInst = (second_word << 16) | machInst;
   }
 
-  std::cout << "[AVR] PC=" << std::hex << pc << " INSTR=0x" << (int)machInst
-            << std::dec << std::endl;
+  // For Debug
+  // std::cout << "[AVR] PC=" << std::hex << pc << " INSTR=0x" << (int)machInst
+            // << std::dec << std::endl;
 
   // Get the AVR-specific decoder
   AVRISAInst::Decoder *decoder =

@@ -52,3 +52,16 @@ def bitfield MOV_D  <8:4>;
 // For LDS/STS (32-bit): 1001 000d dddd 0000 kkkk kkkk kkkk kkkk
 def bitfield DS_D <8:4>;  // Source or dest register
 def bitfield DS_K <31:16>; // 16-bit address
+// For CPI/SUBI (same as LDI)
+// 0011 KKKK dddd KKKK (CPI)
+// 0101 KKKK dddd KKKK (SUBI)
+// Reusing LDI_KH, LDI_KL, LDI_D
+
+// For Conditional Branches: 1111 0Skk kkkk ksss
+def bitfield BR_K <9:3>;     // k7:1 in the instruction, relative offset
+def bitfield BR_S <2:0>;     // s2:0 in the instruction, flag index
+
+def bitfield BIT12 <12:12>;
+def bitfield BIT13 <13:13>;
+def bitfield BIT14 <14:14>;
+def bitfield BIT15 <15:15>;
