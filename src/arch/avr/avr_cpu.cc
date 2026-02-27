@@ -26,11 +26,6 @@ AVRCPU::AVRCPU(const AVRCPUParams &p)
     warn("AVRCPU: No valid AVRInterrupts object bound to CPU.\n");
   }
 
-  warn("numThreads: %d", numThreads);
-  warn("isa size: %d", p.isa.size());
-  warn("decoder size: %d", p.decoder.size());
-  warn("workload size: %d", p.workload.size());
-
   for (ThreadID tid = 0; tid < numThreads; tid++) {
     if (p.workload.size() > tid) {
       threadContexts.push_back(new SimpleThread(this, tid, p.system,
@@ -129,6 +124,46 @@ void AVRCPU::executeInstruction() {
     ops++;
     baseStats.numInsts++;
     baseStats.numOps++;
+
+    // Update thread-level commit stats
+    if (!commitStats.empty()) {
+      auto &cstats = *commitStats[0];
+      cstats.numInsts++;
+      cstats.numOps++;
+      if (!inst->isMicroop() || inst->isLastMicroop()) {
+        cstats.numInstsNotNOP++;
+        cstats.numOpsNotNOP++;
+      }
+      if (inst->isLoad())
+        cstats.numLoadInsts++;
+      if (inst->isStore())
+        cstats.numStoreInsts++;
+      if (inst->isControl())
+        cstats.updateComCtrlStats(inst);
+      if (inst->isInteger())
+        cstats.numIntInsts++;
+      if (inst->isFloating())
+        cstats.numFpInsts++;
+    }
+
+    // Update thread-level execute stats
+    if (!executeStats.empty()) {
+      auto &estats = *executeStats[0];
+      estats.numInsts++;
+      if (inst->isNop())
+        estats.numNop++;
+      if (inst->isLoad())
+        estats.numLoadInsts++;
+      if (inst->isControl())
+        estats.numBranches++;
+      if (inst->isInteger())
+        estats.numIntAluAccesses++;
+      if (inst->isFloating())
+        estats.numFpAluAccesses++;
+      if (inst->isMemRef() || inst->isLoad() || inst->isStore())
+        estats.numMemRefs++;
+    }
+
     // Advance PC based on the instruction
     PCStateBase *pc_state = tc->pcState().clone();
     inst->advancePC(*pc_state);
