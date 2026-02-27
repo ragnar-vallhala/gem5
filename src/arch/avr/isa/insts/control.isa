@@ -1,0 +1,81 @@
+// -*- mode:c++ -*-
+
+def format Jump(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'name': name
+                       },
+                       opt_args)
+    header_output = JumpDeclare.subst(iop)
+    decoder_output = JumpConstructor.subst(iop)
+    decode_block = JumpDecode.subst(iop)
+    exec_output = JumpExecute.subst(iop)
+}};
+
+def template JumpDecode {{
+    return new %(class_name)s(machInst);
+}};
+
+def template JumpDeclare {{
+    class %(class_name)s : public gem5::AVRISAInst::AVRStaticInst
+    {
+      public:
+        %(class_name)s(gem5::AVRISAInst::MachInst machInst);
+        Fault execute(ExecContext *, trace::InstRecord *) const override;
+        std::string generateDisassembly(gem5::Addr pc,
+            const gem5::loader::SymbolTable *symtab) const override;
+        void advancePC(PCStateBase &pc_state) const;
+    };
+}};
+
+def template JumpConstructor {{
+    %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
+        : gem5::AVRISAInst::AVRStaticInst("%(name)s", machInst, %(op_class)s)
+    {
+        _numSrcRegs = 0;
+        _numDestRegs = 0;
+        flags[IsControl] = true;
+        flags[IsDirectControl] = true;
+        if (std::string("%(name)s") == "call") {
+            flags[IsCall] = true;
+        }
+    }
+
+    void %(class_name)s::advancePC(PCStateBase &pc_state) const {
+        // Handled in execute for jumps
+    }
+
+    std::string
+    %(class_name)s::generateDisassembly(gem5::Addr pc,
+        const gem5::loader::SymbolTable *symtab) const
+    {
+        std::stringstream ss;
+        ss << "%(name)s 0x" << std::hex << (uint32_t)((JMP_H << 17) | (JMP_M << 16) | JMP_L);
+        return ss.str();
+    }
+}};
+
+def template JumpExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint32_t target = ((JMP_H << 17) | (JMP_M << 16) | JMP_L) << 1;
+
+        if (std::string("%(name)s") == "call") {
+            // Push return address to stack (PC + 4)
+            // Simplified CALL support: just warn but do the jump
+            warn("CALL instruction at 0x%lx: stack push missing",
+                 xc->pcState().instAddr());
+        }
+
+        auto pc = xc->pcState().as<gem5::AVRISAInst::PCState>();
+        pc.set(target);
+        xc->pcState(pc);
+
+        return NoFault;
+    }
+}};
+
+// Instructions are instantiated in the decoder using the Jump format

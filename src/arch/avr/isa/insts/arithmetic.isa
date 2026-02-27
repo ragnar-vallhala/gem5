@@ -55,8 +55,8 @@ def template AddDeclare {{
       public:
         %(class_name)s(gem5::AVRISAInst::MachInst machInst);
         Fault execute(ExecContext *, trace::InstRecord *) const override;
-        std::string generateDisassembly(Addr pc,
-            const loader::SymbolTable *symtab) const override;
+        std::string generateDisassembly(gem5::Addr pc,
+            const gem5::loader::SymbolTable *symtab) const override;
         void advancePC(PCStateBase &pc_state) const;
     };
 }};
@@ -87,7 +87,7 @@ def template AddConstructor {{
         avr_pc.advance();
     }
     std::string
-    %(class_name)s::generateDisassembly(Addr pc,
+    %(class_name)s::generateDisassembly(gem5::Addr pc,
         const gem5::loader::SymbolTable *symtab) const
     {
         std::stringstream ss;
@@ -128,7 +128,7 @@ def template AddExecute {{
 
 def template AddDisassembly {{
     std::string
-    %(class_name)s::generateDisassembly(Addr pc,
+    %(class_name)s::generateDisassembly(gem5::Addr pc,
         const gem5::loader::SymbolTable *symtab) const
     {
         std::stringstream ss;
@@ -175,7 +175,7 @@ def template SubConstructor {{
         avr_pc.advance();
     }
     std::string
-    %(class_name)s::generateDisassembly(Addr pc,
+    %(class_name)s::generateDisassembly(gem5::Addr pc,
         const gem5::loader::SymbolTable *symtab) const
     {
         std::stringstream ss;
@@ -192,13 +192,13 @@ def template SubExecute {{
         // Read source registers
         uint8_t rd = xc->getRegOperand(this, srcRegIdx(0));  // Changed to getRegOperand
         uint8_t rr = xc->getRegOperand(this, srcRegIdx(1));  // Changed to getRegOperand
-        uint8_t result = rd + rr;
+        uint8_t result = rd - rr;
 
         // Read SREG
         uint8_t sreg = xc->readMiscRegOperand(this, AVRISAInst::MISCREG_SREG);
 
         // Update flags
-        AVRISAInst::updateFlagsAdd(sreg, result, rd, rr);
+        AVRISAInst::updateFlagsSub(sreg, result, rd, rr);
 
         // Write results
         xc->setRegOperand(this, destRegIdx(0), result);  // Changed to setRegOperand
@@ -215,7 +215,7 @@ def template SubExecute {{
 
 def template SubDisassembly {{
     std::string
-    %(class_name)s::generateDisassembly(Addr pc,
+    %(class_name)s::generateDisassembly(gem5::Addr pc,
         const gem5::loader::SymbolTable *symtab) const
     {
         std::stringstream ss;

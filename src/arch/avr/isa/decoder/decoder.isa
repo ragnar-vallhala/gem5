@@ -1,13 +1,15 @@
 // decoder.isa
 
-decode OPCODE default Unknown::unknown({{
-    // Use ExecContext for register access
-    PCState pc = xc->pcState();
-    pc.increment();
-    xc->pcState(pc);
+decode OPCODE default Unimplemented::decode_default({{
+    // Default: unknown instruction — UnknownInstFault advances PC
     return std::make_shared<UnknownInstFault>();
 }}) {
 
+    // NOP: instruction word 0x0000
+    // OPCODE=0x0 (bits[15:10]=000000)
+    0x0: Basic::nop({{
+        // No operation; advancePC handles the PC increment
+    }});
     0x3: Add::add({{
         // Read source registers
         uint8_t rd = xc->readIntRegOperand(this, 0);
@@ -55,4 +57,20 @@ decode OPCODE default Unknown::unknown({{
 
         return NoFault;
     }});
+
+    // AVR SLEEP (0x9588), JMP (0x940c), CALL (0x940e) share OPCODE 0x25 (100101)
+    0x25: decode OP_EXTRA {
+        0x4: decode LOW_WORD default Unimplemented::op25_extra_default({{
+            return std::make_shared<UnknownInstFault>();
+        }}) {
+            0x9588: Basic::sleep({{
+                return std::make_shared<gem5::AVRISAInst::HaltFault>();
+            }});
+        }
+        0x6: Jump::jmp({{ }});
+        0x7: Jump::call({{ }});
+        default: Unimplemented::op25_default({{
+            return std::make_shared<UnknownInstFault>();
+        }});
+    }
 }

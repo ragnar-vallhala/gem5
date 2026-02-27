@@ -10,9 +10,9 @@ def format Basic(code, *opt_args) {{
 
 
 
-def format Unknown(code, *opt_args) {{
-    iop = InstObjParams(name, Name, 'UnknownOp',
-                       {'code': code, 'predicate_test': predicateTest},
+def format Unimplemented(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'UnimplementedOp',
+                       {'code': code, 'predicate_test': predicateTest, 'name': name},
                        opt_args)
     header_output = UnknownDeclare.subst(iop)
     decoder_output = UnknownConstructor.subst(iop)

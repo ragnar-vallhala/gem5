@@ -4,6 +4,7 @@
 #include "arch/avr/avr_interrupts.hh"
 #include "arch/avr/avr_mmu.hh"
 #include "cpu/base.hh"
+#include "cpu/exec_context.hh"
 #include "cpu/simple_thread.hh"
 #include "mem/port.hh"
 #include "sim/eventq.hh"
@@ -29,6 +30,82 @@ public:
 
 protected:
   EventFunctionWrapper tickEvent;
+
+  /**
+   * Minimal ExecContext adapter that wraps SimpleThread for use by
+   * StaticInst::execute(). Only the methods needed by the AVR ISA
+   * templates are fully implemented; the rest panic.
+   */
+  class AVRExecContext : public ExecContext {
+  public:
+    explicit AVRExecContext(SimpleThread *t) : thread(t) {}
+
+    RegVal getRegOperand(const StaticInst *si, int idx) override {
+      return thread->getReg(si->srcRegIdx(idx));
+    }
+    void getRegOperand(const StaticInst *si, int idx, void *val) override {
+      thread->getReg(si->srcRegIdx(idx), val);
+    }
+    void *getWritableRegOperand(const StaticInst *si, int idx) override {
+      return thread->getWritableReg(si->destRegIdx(idx));
+    }
+    void setRegOperand(const StaticInst *si, int idx, RegVal val) override {
+      thread->setReg(si->destRegIdx(idx), val);
+    }
+    void setRegOperand(const StaticInst *si, int idx,
+                       const void *val) override {
+      thread->setReg(si->destRegIdx(idx), val);
+    }
+
+    RegVal readMiscRegOperand(const StaticInst *si, int idx) override {
+      return thread->readMiscReg(si->srcRegIdx(idx).index());
+    }
+    void setMiscRegOperand(const StaticInst *si, int idx, RegVal val) override {
+      thread->setMiscReg(si->destRegIdx(idx).index(), val);
+    }
+    RegVal readMiscReg(int misc_reg) override {
+      return thread->readMiscReg(misc_reg);
+    }
+    void setMiscReg(int misc_reg, RegVal val) override {
+      thread->setMiscReg(misc_reg, val);
+    }
+
+    const PCStateBase &pcState() const override { return thread->pcState(); }
+    void pcState(const PCStateBase &val) override { thread->pcState(val); }
+
+    Fault writeMem(uint8_t *data, unsigned int size, Addr addr,
+                   Request::Flags flags, uint64_t *res,
+                   const std::vector<bool> &byte_enable) override {
+      panic("AVRExecContext::writeMem not implemented");
+    }
+    Fault initiateMemMgmtCmd(Request::Flags flags) override {
+      panic("AVRExecContext::initiateMemMgmtCmd not implemented");
+    }
+    void setStCondFailures(unsigned int sc_failures) override {}
+    unsigned int readStCondFailures() const override { return 0; }
+
+    ThreadContext *tcBase() const override { return thread; }
+
+    // ARM-specific stubs
+    bool readPredicate() const override { return true; }
+    void setPredicate(bool val) override {}
+    bool readMemAccPredicate() const override { return true; }
+    void setMemAccPredicate(bool val) override {}
+    uint64_t newHtmTransactionUid() const override { return 0; }
+    uint64_t getHtmTransactionUid() const override { return 0; }
+    bool inHtmTransactionalState() const override { return false; }
+    uint64_t getHtmTransactionalDepth() const override { return 0; }
+
+    // x86-specific stubs
+    void demapPage(Addr vaddr, uint64_t asn) override {}
+    void armMonitor(Addr address) override {}
+    bool mwait(PacketPtr pkt) override { return false; }
+    void mwaitAtomic(ThreadContext *tc) override {}
+    AddressMonitor *getAddrMonitor() override { return nullptr; }
+
+  private:
+    SimpleThread *thread;
+  };
 
 private:
   /* ---------------- Instruction Port (RequestPort) ---------------- */

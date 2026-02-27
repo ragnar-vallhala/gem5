@@ -2,3 +2,14 @@ def bitfield OPCODE    <15:10>;
 def bitfield REG_D     <8:4>;
 def bitfield REG_R     <3:0>;
 def bitfield IMM8      <7:0>;
+
+// For 32-bit JMP/CALL
+// machInst is [second_word:first_word]
+// bits 15:0 = first_word
+// bits 31:16 = second_word
+def bitfield JMP_H  <8:4>;    // k21:17 from first_word
+def bitfield JMP_M  <0:0>;    // k16 from first_word
+def bitfield JMP_L  <31:16>;  // k15:0 from second_word
+def bitfield OP_EXTRA <3:1>;  // bits 3:1 of first_word
+def bitfield LOW_WORD <15:0>;
+def bitfield FULL     <31:0>;

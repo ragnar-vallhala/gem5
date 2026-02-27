@@ -1,4 +1,5 @@
 programs/
+*.log
 gem5_dev_env
 build
 gem5_build
