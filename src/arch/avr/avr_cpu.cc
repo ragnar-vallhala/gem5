@@ -92,7 +92,7 @@ void AVRCPU::executeInstruction() {
 
   // For Debug
   // std::cout << "[AVR] PC=" << std::hex << pc << " INSTR=0x" << (int)machInst
-            // << std::dec << std::endl;
+  //           << std::dec << std::endl;
 
   // Get the AVR-specific decoder
   AVRISAInst::Decoder *decoder =

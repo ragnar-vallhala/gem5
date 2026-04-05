@@ -8,6 +8,3 @@
 
 ##include "arithmetic.isa"
 ##include "control.isa"
-// ##include "insts/logic.isa"
-// ##include "insts/data_transfer.isa"
-// ##include "insts/branch.isa"

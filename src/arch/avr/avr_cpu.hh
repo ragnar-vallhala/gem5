@@ -76,8 +76,15 @@ protected:
     Fault readMem(Addr addr, uint8_t *data, unsigned int size,
                   Request::Flags flags,
                   const std::vector<bool> &byte_enable) override {
+      Addr phys_addr = addr;
+      // If it's not an instruction fetch (LPM uses INST_FETCH flag here)
+      // and it's a low address, map it to RAM (0x800000 offset).
+      if (!(flags & Request::INST_FETCH) && addr < 0x800000) {
+        phys_addr += 0x800000;
+      }
       for (unsigned int i = 0; i < size; i++) {
-        data[i] = thread->getSystemPtr()->physProxy.read<uint8_t>(addr + i);
+        data[i] =
+            thread->getSystemPtr()->physProxy.read<uint8_t>(phys_addr + i);
       }
       return NoFault;
     }
@@ -85,8 +92,13 @@ protected:
     Fault writeMem(uint8_t *data, unsigned int size, Addr addr,
                    Request::Flags flags, uint64_t *res,
                    const std::vector<bool> &byte_enable) override {
+      Addr phys_addr = addr;
+      if (addr < 0x800000) {
+        phys_addr += 0x800000;
+      }
       for (unsigned int i = 0; i < size; i++) {
-        thread->getSystemPtr()->physProxy.write<uint8_t>(addr + i, data[i]);
+        thread->getSystemPtr()->physProxy.write<uint8_t>(phys_addr + i,
+                                                         data[i]);
       }
       if (res)
         *res = 0;

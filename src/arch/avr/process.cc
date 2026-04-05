@@ -22,12 +22,12 @@ AVRProcess::AVRProcess(const ProcessParams &params, loader::ObjectFile *objFile)
   fatal_if(params.useArchPT, "Arch page tables not implemented for AVR.");
 
   // AVR uses a 16-bit address space (64KB).
-  // Use 0xFFFF as max stack address.
-  const Addr stack_base = 0xFFFF;
+  // Use 0x80FFFF as max stack address.
+  const Addr stack_base = 0x80FFFF;
   const Addr max_stack_size = 4 * 1024; // 4KB max stack
   const Addr next_thread_stack_base = stack_base - max_stack_size;
   const Addr brk_point = roundUp(image.maxAddr(), AvrPageBytes);
-  const Addr mmap_end = 0x8000;
+  const Addr mmap_end = 0x808000;
   memState =
       std::make_shared<MemState>(this, brk_point, stack_base, max_stack_size,
                                  next_thread_stack_base, mmap_end);

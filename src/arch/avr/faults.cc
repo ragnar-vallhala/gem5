@@ -2,7 +2,11 @@
 #include "arch/avr/pcstate.hh"
 #include "arch/avr/types.hh"
 #include "cpu/thread_context.hh"
+#include "sim/core.hh"
+#include "sim/cur_tick.hh"
 #include "sim/sim_exit.hh"
+#include "sim/system.hh"
+#include <iostream>
 
 namespace gem5 {
 namespace AVRISAInst {
@@ -31,6 +35,35 @@ void UnknownInstFault::invoke(ThreadContext *tc, const StaticInstPtr &inst) {
 }
 
 // HaltFault is defined inline in faults.hh — nothing extra needed here.
+
+void SyscallFault::invoke(ThreadContext *tc, const StaticInstPtr &inst) {
+  // Syscall convention: R16 = syscall number, R17 = argument
+  // Syscall 1: putchar(R17)
+  // Syscall 2: exit()
+  // Syscall 3: get_time()
+  RegVal num = tc->getReg(RegId(intRegClass, 16));
+  warn("AVR Syscall triggered: num=%d", (int)num);
+  if (num == 1) {
+    RegVal arg = tc->getReg(RegId(intRegClass, 17));
+    std::cout << (char)arg << std::flush;
+  } else if (num == 2) {
+    gem5::exitSimLoop("AVR Syscall Exit");
+  } else if (num == 3) {
+    // get_time: return milliseconds in R22-R25
+    uint32_t ms = curTick() / gem5::sim_clock::as_int::ms;
+    tc->setReg(RegId(intRegClass, 22), (ms & 0xFF));
+    tc->setReg(RegId(intRegClass, 23), ((ms >> 8) & 0xFF));
+    tc->setReg(RegId(intRegClass, 24), ((ms >> 16) & 0xFF));
+    tc->setReg(RegId(intRegClass, 25), ((ms >> 24) & 0xFF));
+  } else {
+    warn("Unknown AVR syscall number: %d", (int)num);
+  }
+
+  // Advance PC to next instruction
+  auto pc = tc->pcState().as<PCState>();
+  pc.advance();
+  tc->pcState(pc);
+}
 
 } // namespace AVRISAInst
 } // namespace gem5

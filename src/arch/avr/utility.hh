@@ -4,9 +4,9 @@
 #include "arch/avr/registers.hh"
 #include "arch/avr/types.hh"
 #include "base/types.hh"
+#include <cstdint>
 
-namespace gem5
-{
+namespace gem5 {
 
 namespace AVRISAInst {
 
@@ -14,6 +14,8 @@ namespace AVRISAInst {
 uint8_t bits(const MachInst machInst, int hi, int lo);
 void updateFlagsAdd(uint8_t &sreg, uint8_t result, uint8_t rd, uint8_t rr);
 void updateFlagsSub(uint8_t &sreg, uint8_t result, uint8_t rd, uint8_t rr);
+void updateFlagsSubC(uint8_t &sreg, uint8_t result, uint8_t rd, uint8_t rr,
+                     uint8_t carry);
 
 } // namespace AVRISAInst
 } // namespace gem5

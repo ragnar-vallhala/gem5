@@ -53,7 +53,30 @@ def template AddConstructor {{
     %(class_name)s::generateDisassembly(gem5::Addr pc,
         const gem5::loader::SymbolTable *symtab) const
     {
-        return "%(mnemonic)s"; // Stub
+        return "%(mnemonic)s";
+    }
+}};
+
+def template OneRegDisassembly {{
+    std::string
+    %(class_name)s::generateDisassembly(gem5::Addr pc,
+        const gem5::loader::SymbolTable *symtab) const
+    {
+        std::stringstream ss;
+        ss << "%(mnemonic)s r" << (int)bits(machInst, 8, 4);
+        return ss.str();
+    }
+}};
+
+def template TwoRegDisassembly {{
+    std::string
+    %(class_name)s::generateDisassembly(gem5::Addr pc,
+        const gem5::loader::SymbolTable *symtab) const
+    {
+        std::stringstream ss;
+        ss << "%(mnemonic)s r" << (int)bits(machInst, 8, 4)
+           << ", r" << (int)((bits(machInst, 9, 9) << 4) | bits(machInst, 3, 0));
+        return ss.str();
     }
 }};
 
@@ -104,7 +127,7 @@ def template SubDeclare {{
 
 def template SubConstructor {{
     %(class_name)s::%(class_name)s(gem5::AVRISAInst::MachInst machInst)
-        : gem5::AVRISAInst::AVRStaticInst("sub", machInst, %(op_class)s)
+        : gem5::AVRISAInst::AVRStaticInst("%(mnemonic)s", machInst, %(op_class)s)
     {
         flags[IsInteger] = true;
     }
@@ -120,6 +143,37 @@ def template SubConstructor {{
         ss << "sub r" << (int)bits(machInst, 8, 4)
            << ", r" << (int)((bits(machInst, 9, 9) << 4) | bits(machInst, 3, 0));
         return ss.str();
+    }
+}};
+
+def template MulExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = bits(machInst, 8, 4);
+        uint8_t rr_idx = (bits(machInst, 9, 9) << 4) | bits(machInst, 3, 0);
+
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint16_t result = (uint16_t)(uint8_t)rd * (uint16_t)(uint8_t)rr;
+
+        // Multiply sets R1:R0
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 0), (RegVal)(result & 0xFF));
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 1), (RegVal)(result >> 8));
+
+        // Update flags
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        // Carry is set to bit 15 of the result
+        if (result & 0x8000) sreg |= (1 << AVRISAInst::SREG_C);
+        else sreg &= ~(1 << AVRISAInst::SREG_C);
+
+        // Zero flag is set if result is 0
+        if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+
+        return NoFault;
     }
 }};
 
@@ -245,6 +299,325 @@ def template SubiExecute {{
     }
 }};
 
+def template SbciExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = 16 + LDI_D;
+        uint8_t imm = (LDI_KH << 4) | LDI_KL;
+
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t carry = sreg & 0x1;
+        uint8_t result = (uint8_t)rd - imm - carry;
+
+        AVRISAInst::updateFlagsSubC(sreg, result, (uint8_t)rd, imm, carry);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+
+        return NoFault;
+    }
+}};
+
+def template SbiwExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_base = 24 + (ADIW_D << 1);
+        uint8_t imm = (ADIW_KH << 4) | ADIW_KL;
+
+        RegVal low = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_base));
+        RegVal high = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_base + 1));
+
+        uint16_t val = (high << 8) | low;
+        uint16_t res = val - imm;
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base), res & 0xFF);
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base + 1), (res >> 8) & 0xFF);
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        // Correct SREG flags for SBIW
+        if (res > val) sreg |= (1 << AVRISAInst::SREG_C);
+        else sreg &= ~(1 << AVRISAInst::SREG_C);
+        if (res == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (res & 0x8000) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        if ((val & 0x8000) && !(res & 0x8000)) sreg |= (1 << AVRISAInst::SREG_V);
+        else sreg &= ~(1 << AVRISAInst::SREG_V);
+        if (((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1))
+            sreg |= (1 << AVRISAInst::SREG_S);
+        else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template SbcExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t carry = sreg & 0x1;
+        uint8_t result = (uint8_t)rd - (uint8_t)rr - carry;
+
+        AVRISAInst::updateFlagsSubC(sreg, result, (uint8_t)rd, (uint8_t)rr, carry);
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template AdcExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t carry = sreg & 0x1;
+        uint16_t result16 = (uint16_t)rd + (uint16_t)rr + carry;
+        uint8_t result = (uint8_t)result16;
+
+        AVRISAInst::updateFlagsAdd(sreg, result, (uint8_t)rd, (uint8_t)rr);
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template AndExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t result = (uint8_t)rd & (uint8_t)rr;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        sreg &= ~(1 << AVRISAInst::SREG_V);
+        if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        bool s = ((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1);
+        if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template OrExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t result = (uint8_t)rd | (uint8_t)rr;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        sreg &= ~(1 << AVRISAInst::SREG_V);
+        if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        bool s = ((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1);
+        if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template DecExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = REG_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        uint8_t result = (uint8_t)rd - 1;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        if ((uint8_t)rd == 0x80) sreg |= (1 << AVRISAInst::SREG_V);
+        else sreg &= ~(1 << AVRISAInst::SREG_V);
+        bool s = ((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1);
+        if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template IncExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = REG_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        uint8_t result = (uint8_t)rd + 1;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        if ((uint8_t)rd == 0x7F) sreg |= (1 << AVRISAInst::SREG_V);
+        else sreg &= ~(1 << AVRISAInst::SREG_V);
+        bool s = ((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1);
+        if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template NegExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = REG_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        uint8_t result = 0 - (uint8_t)rd;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        AVRISAInst::updateFlagsSub(sreg, result, 0, (uint8_t)rd);
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template ComExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = REG_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        uint8_t result = 0xFF - (uint8_t)rd;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        sreg |= (1 << AVRISAInst::SREG_C);
+        sreg &= ~(1 << AVRISAInst::SREG_V);
+        if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        bool s = ((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1);
+        if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template MovwExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rd_idx = (REG_D & 0xF) << 1;
+        uint8_t rr_idx = (REG_R & 0xF) << 1;
+        RegVal low = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        RegVal high = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx + 1));
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), low);
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx + 1), high);
+        return NoFault;
+    }
+}};
+
+def template CpcExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t carry = sreg & 0x1;
+        uint8_t result = (uint8_t)rd - (uint8_t)rr - carry;
+
+        AVRISAInst::updateFlagsSubC(sreg, result, (uint8_t)rd, (uint8_t)rr, carry);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template CpExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t result = (uint8_t)rd - (uint8_t)rr;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, (uint8_t)rr);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template EorExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (EOR_RH << 4) | EOR_RL;
+        uint8_t rd_idx = EOR_D;
+        RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
+        RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        uint8_t result = (uint8_t)rd ^ (uint8_t)rr;
+
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        sreg &= ~(1 << AVRISAInst::SREG_V);
+        if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+        else sreg &= ~(1 << AVRISAInst::SREG_Z);
+        if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
+        else sreg &= ~(1 << AVRISAInst::SREG_N);
+        bool s = ((sreg >> AVRISAInst::SREG_N) & 1) ^ ((sreg >> AVRISAInst::SREG_V) & 1);
+        if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
+
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
+        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        return NoFault;
+    }
+}};
+
+def template MovExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
+    {
+        uint8_t rr_idx = (MOV_RH << 4) | MOV_RL;
+        uint8_t rd_idx = MOV_D;
+        RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
+        xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), val);
+        return NoFault;
+    }
+}};
+
 // --- Formats ---
 
 def format Add(code, *opt_args) {{
@@ -288,6 +661,20 @@ def format Adiw(code, *opt_args) {{
     decode_block = SubDecode.subst(iop)
     exec_output = AdiwExecute.subst(iop)
 }};
+
+def format Sbiw(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu'
+                       },
+                       opt_args)
+    header_output = AdiwDeclare.subst(iop)
+    decoder_output = SubConstructor.subst(iop)
+    decode_block = SubDecode.subst(iop)
+    exec_output = SbiwExecute.subst(iop)
+}};
+
 def format Cpi(code, *opt_args) {{
     iop = InstObjParams(name, Name, 'AVRStaticInst',
                        {'code': code,
@@ -314,4 +701,228 @@ def format Subi(code, *opt_args) {{
     decode_block = SubDecode.subst(iop)
     exec_output = SubiExecute.subst(iop)
     disasm_output = SubDisassembly.subst(iop)
+}};
+
+def format Sbci(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu'
+                       },
+                       opt_args)
+    header_output = SubDeclare.subst(iop)
+    decoder_output = SubConstructor.subst(iop)
+    decode_block = SubDecode.subst(iop)
+    exec_output = SbciExecute.subst(iop)
+    disasm_output = SubDisassembly.subst(iop)
+}};
+
+def format Sbc(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'sbc'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = SbcExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Adc(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'adc'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = AdcExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format And(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'and'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = AndExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Or(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'or'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = OrExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Dec(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'dec'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = DecExecute.subst(iop)
+    disasm_output = OneRegDisassembly.subst(iop)
+}};
+
+def format Inc(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'inc'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = IncExecute.subst(iop)
+    disasm_output = OneRegDisassembly.subst(iop)
+}};
+
+def format Neg(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'neg'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = NegExecute.subst(iop)
+    disasm_output = OneRegDisassembly.subst(iop)
+}};
+
+def format Com(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'com'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = ComExecute.subst(iop)
+    disasm_output = OneRegDisassembly.subst(iop)
+}};
+
+def format Movw(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'movw'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = MovwExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Cpc(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'cpc'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = CpcExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Cp(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'cp'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = CpExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Mul(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'mul'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = MulExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Eor(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'eor'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = EorExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
+}};
+
+def format Mov(code, *opt_args) {{
+    iop = InstObjParams(name, Name, 'AVRStaticInst',
+                       {'code': code,
+                        'predicate_test': predicateTest,
+                        'op_class': 'gem5::enums::IntAlu',
+                        'mnemonic': 'mov'
+                       },
+                       opt_args)
+    header_output = AddDeclare.subst(iop)
+    decoder_output = AddConstructor.subst(iop)
+    decode_block = AddDecode.subst(iop)
+    exec_output = MovExecute.subst(iop)
+    disasm_output = TwoRegDisassembly.subst(iop)
 }};
