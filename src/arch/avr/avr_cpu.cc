@@ -166,7 +166,15 @@ void AVRCPU::executeInstruction() {
         estats.numMemRefs++;
     }
 
-    // Advance PC based on the instruction
+    // Advance PC based on the instruction. NOTE the inline (Basic-format)
+    // control instructions follow a "+2 base advance" convention: their
+    // execute() leaves PC two bytes short of the intended next PC, and this
+    // unconditional advancePC supplies that final +2. Skip instructions
+    // (cpse/sbrc/sbrs) do one extra pc.advance() in execute() so the total is
+    // +4 (skip the next 2-byte instruction); jump-to-target instructions
+    // (icall/ijmp) set target-2 so the +2 lands exactly on target. The
+    // template-format control instructions (jmp/call/rcall/ret/rjmp/brbc/brbs)
+    // use a no-op advancePC and set the final PC directly in execute().
     PCStateBase *pc_state = tc->pcState().clone();
     inst->advancePC(*pc_state);
     tc->pcState(*pc_state);

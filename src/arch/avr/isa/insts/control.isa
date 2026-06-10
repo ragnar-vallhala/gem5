@@ -117,7 +117,7 @@ def template ConditionalBranchExecute {{
     %(class_name)s::execute(ExecContext *xc, trace::InstRecord *traceData) const
     {
         uint8_t s = BR_S;
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         bool set = (sreg >> s) & 1;
         bool branch = false;
 

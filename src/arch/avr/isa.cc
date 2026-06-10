@@ -28,39 +28,23 @@ PCStateBase *AVR::newPCState(Addr new_inst_addr) const {
 }
 
 RegVal AVR::readMiscRegNoEffect(RegIndex idx) const {
-  if (idx == AVRISAInst::SREG_Idx)
-    idx = AVRISAInst::MISCREG_SREG;
-  if (idx == AVRISAInst::SP_Idx)
-    idx = AVRISAInst::MISCREG_SP;
   if (idx >= AVRISAInst::NUM_MISCREGS)
     return 0;
   return miscRegs[idx];
 }
 
 RegVal AVR::readMiscReg(RegIndex idx) {
-  if (idx == AVRISAInst::SREG_Idx)
-    idx = AVRISAInst::MISCREG_SREG;
-  if (idx == AVRISAInst::SP_Idx)
-    idx = AVRISAInst::MISCREG_SP;
   if (idx >= AVRISAInst::NUM_MISCREGS)
     return 0;
   return miscRegs[idx];
 }
 
 void AVR::setMiscRegNoEffect(RegIndex idx, RegVal val) {
-  if (idx == AVRISAInst::SREG_Idx)
-    idx = AVRISAInst::MISCREG_SREG;
-  if (idx == AVRISAInst::SP_Idx)
-    idx = AVRISAInst::MISCREG_SP;
   if (idx < AVRISAInst::NUM_MISCREGS)
     miscRegs[idx] = val;
 }
 
 void AVR::setMiscReg(RegIndex idx, RegVal val) {
-  if (idx == AVRISAInst::SREG_Idx)
-    idx = AVRISAInst::MISCREG_SREG;
-  if (idx == AVRISAInst::SP_Idx)
-    idx = AVRISAInst::MISCREG_SP;
   if (idx < AVRISAInst::NUM_MISCREGS)
     miscRegs[idx] = val;
 }

@@ -70,13 +70,11 @@ const int SREG_N = 2; // Negative Flag
 const int SREG_Z = 1; // Zero Flag
 const int SREG_C = 0; // Carry Flag
 
-// Register indices for special registers
-const int PC_Idx = NumGPRegs;       // Program Counter
-const int SREG_Idx = NumGPRegs + 1; // Status Register
-const int SP_Idx = NumGPRegs + 2;   // Stack Pointer
-
-// Total number of registers
-const int NumRegs = NumGPRegs + 3; // GPRs + PC + SREG + SP
+// Total number of integer registers.
+// Only the 32 GPRs live in the integer register class. PC is modeled via
+// PCState; SREG and SP are MiscRegs (MISCREG_SREG / MISCREG_SP) and are the
+// single source of truth for those values.
+const int NumRegs = NumGPRegs;
 
 // Misc Register Indices
 enum MiscRegIndex {

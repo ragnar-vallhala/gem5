@@ -91,11 +91,11 @@ def template AddExecute {{
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
         uint8_t result = (uint8_t)rd + (uint8_t)rr;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         AVRISAInst::updateFlagsAdd(sreg, result, (uint8_t)rd, (uint8_t)rr);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
 
         return NoFault;
     }
@@ -162,7 +162,7 @@ def template MulExecute {{
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 1), (RegVal)(result >> 8));
 
         // Update flags
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         // Carry is set to bit 15 of the result
         if (result & 0x8000) sreg |= (1 << AVRISAInst::SREG_C);
         else sreg &= ~(1 << AVRISAInst::SREG_C);
@@ -171,7 +171,7 @@ def template MulExecute {{
         if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
         else sreg &= ~(1 << AVRISAInst::SREG_Z);
 
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
 
         return NoFault;
     }
@@ -188,11 +188,11 @@ def template SubExecute {{
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
         uint8_t result = (uint8_t)rd - (uint8_t)rr;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, (uint8_t)rr);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
 
         return NoFault;
     }
@@ -242,7 +242,7 @@ def template AdiwExecute {{
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base), res & 0xFF);
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base + 1), (res >> 8) & 0xFF);
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         if (res < val) sreg |= (1 << AVRISAInst::SREG_C);
         else sreg &= ~(1 << AVRISAInst::SREG_C);
         if (res == 0) sreg |= (1 << AVRISAInst::SREG_Z);
@@ -255,7 +255,7 @@ def template AdiwExecute {{
             sreg |= (1 << AVRISAInst::SREG_S);
         else sreg &= ~(1 << AVRISAInst::SREG_S);
 
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -270,10 +270,10 @@ def template CpiExecute {{
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         uint8_t result = (uint8_t)rd - imm;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, imm);
 
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
 
         return NoFault;
     }
@@ -289,11 +289,11 @@ def template SubiExecute {{
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         uint8_t result = (uint8_t)rd - imm;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, imm);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
 
         return NoFault;
     }
@@ -307,14 +307,14 @@ def template SbciExecute {{
         uint8_t imm = (LDI_KH << 4) | LDI_KL;
 
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         uint8_t carry = sreg & 0x1;
         uint8_t result = (uint8_t)rd - imm - carry;
 
         AVRISAInst::updateFlagsSubC(sreg, result, (uint8_t)rd, imm, carry);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
 
         return NoFault;
     }
@@ -336,7 +336,7 @@ def template SbiwExecute {{
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base), res & 0xFF);
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_base + 1), (res >> 8) & 0xFF);
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         // Correct SREG flags for SBIW
         if (res > val) sreg |= (1 << AVRISAInst::SREG_C);
         else sreg &= ~(1 << AVRISAInst::SREG_C);
@@ -350,7 +350,7 @@ def template SbiwExecute {{
             sreg |= (1 << AVRISAInst::SREG_S);
         else sreg &= ~(1 << AVRISAInst::SREG_S);
 
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -363,13 +363,13 @@ def template SbcExecute {{
         uint8_t rd_idx = EOR_D;
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         uint8_t carry = sreg & 0x1;
         uint8_t result = (uint8_t)rd - (uint8_t)rr - carry;
 
         AVRISAInst::updateFlagsSubC(sreg, result, (uint8_t)rd, (uint8_t)rr, carry);
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -382,14 +382,15 @@ def template AdcExecute {{
         uint8_t rd_idx = EOR_D;
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         uint8_t carry = sreg & 0x1;
         uint16_t result16 = (uint16_t)rd + (uint16_t)rr + carry;
         uint8_t result = (uint8_t)result16;
 
-        AVRISAInst::updateFlagsAdd(sreg, result, (uint8_t)rd, (uint8_t)rr);
+        AVRISAInst::updateFlagsAddC(sreg, result, (uint8_t)rd, (uint8_t)rr,
+                                    carry);
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -404,7 +405,7 @@ def template AndExecute {{
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
         uint8_t result = (uint8_t)rd & (uint8_t)rr;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         sreg &= ~(1 << AVRISAInst::SREG_V);
         if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
         else sreg &= ~(1 << AVRISAInst::SREG_Z);
@@ -414,7 +415,7 @@ def template AndExecute {{
         if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -429,7 +430,7 @@ def template OrExecute {{
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
         uint8_t result = (uint8_t)rd | (uint8_t)rr;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         sreg &= ~(1 << AVRISAInst::SREG_V);
         if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
         else sreg &= ~(1 << AVRISAInst::SREG_Z);
@@ -439,7 +440,7 @@ def template OrExecute {{
         if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -452,7 +453,7 @@ def template DecExecute {{
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         uint8_t result = (uint8_t)rd - 1;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
         else sreg &= ~(1 << AVRISAInst::SREG_Z);
         if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
@@ -463,7 +464,7 @@ def template DecExecute {{
         if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -476,7 +477,7 @@ def template IncExecute {{
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         uint8_t result = (uint8_t)rd + 1;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
         else sreg &= ~(1 << AVRISAInst::SREG_Z);
         if (result & 0x80) sreg |= (1 << AVRISAInst::SREG_N);
@@ -487,7 +488,7 @@ def template IncExecute {{
         if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -500,10 +501,10 @@ def template NegExecute {{
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         uint8_t result = 0 - (uint8_t)rd;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         AVRISAInst::updateFlagsSub(sreg, result, 0, (uint8_t)rd);
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -516,7 +517,7 @@ def template ComExecute {{
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         uint8_t result = 0xFF - (uint8_t)rd;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         sreg |= (1 << AVRISAInst::SREG_C);
         sreg &= ~(1 << AVRISAInst::SREG_V);
         if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
@@ -527,7 +528,7 @@ def template ComExecute {{
         if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -554,12 +555,12 @@ def template CpcExecute {{
         uint8_t rd_idx = EOR_D;
         RegVal rd = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         uint8_t carry = sreg & 0x1;
         uint8_t result = (uint8_t)rd - (uint8_t)rr - carry;
 
         AVRISAInst::updateFlagsSubC(sreg, result, (uint8_t)rd, (uint8_t)rr, carry);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -574,9 +575,9 @@ def template CpExecute {{
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
         uint8_t result = (uint8_t)rd - (uint8_t)rr;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         AVRISAInst::updateFlagsSub(sreg, result, (uint8_t)rd, (uint8_t)rr);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
@@ -591,7 +592,7 @@ def template EorExecute {{
         RegVal rr = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rr_idx));
         uint8_t result = (uint8_t)rd ^ (uint8_t)rr;
 
-        uint8_t sreg = xc->readMiscReg(AVRISAInst::SREG_Idx);
+        uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
         sreg &= ~(1 << AVRISAInst::SREG_V);
         if (result == 0) sreg |= (1 << AVRISAInst::SREG_Z);
         else sreg &= ~(1 << AVRISAInst::SREG_Z);
@@ -601,7 +602,7 @@ def template EorExecute {{
         if (s) sreg |= (1 << AVRISAInst::SREG_S); else sreg &= ~(1 << AVRISAInst::SREG_S);
 
         xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), (RegVal)result);
-        xc->setMiscReg(AVRISAInst::SREG_Idx, sreg);
+        xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
         return NoFault;
     }
 }};
