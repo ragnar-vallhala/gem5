@@ -3,10 +3,12 @@
 
 #include "arch/avr/avr_interrupts.hh"
 #include "arch/avr/avr_mmu.hh"
+#include "arch/avr/types.hh"
 #include "cpu/base.hh"
 #include "cpu/exec_context.hh"
 #include "cpu/simple_thread.hh"
 #include "mem/port.hh"
+#include "mem/request.hh"
 #include "sim/eventq.hh"
 
 namespace gem5 {
@@ -24,7 +26,26 @@ public:
   void startup() override;
 
   void tick();
-  void executeInstruction();
+  // Executes one instruction and returns its cost in CPU cycles (AVR
+  // instructions take 1-4 cycles depending on type; see instCycles()).
+  Cycles executeInstruction();
+  // Cycle cost of an AVR instruction per the instruction-set manual. machInst
+  // is the (possibly 32-bit) encoding, is32 whether it is a 2-word op, and
+  // oldPc/newPc bracket execution so taken branches and skips can be detected.
+  Cycles instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
+                     Addr newPc) const;
+
+  // Atomic memory access routed through the CPU ports so the SystemXBar
+  // carries real fetch/load/store traffic. The access latency returned by
+  // sendAtomic is intentionally ignored: instCycles() already models the
+  // 2-cycle single-cycle-SRAM access, so adding port latency would
+  // double-count. fetchAtomic uses instPort; data accesses use dataPort.
+  void fetchAtomic(Addr paddr, uint8_t *data, unsigned size);
+  void readDataAtomic(Addr paddr, uint8_t *data, unsigned size,
+                      Request::Flags flags);
+  void writeDataAtomic(Addr paddr, const uint8_t *data, unsigned size,
+                       Request::Flags flags);
+
   Counter totalInsts() const override { return insts; }
   Counter totalOps() const override { return ops; }
 
@@ -82,10 +103,8 @@ protected:
       if (!(flags & Request::INST_FETCH) && addr < 0x800000) {
         phys_addr += 0x800000;
       }
-      for (unsigned int i = 0; i < size; i++) {
-        data[i] =
-            thread->getSystemPtr()->physProxy.read<uint8_t>(phys_addr + i);
-      }
+      static_cast<AVRCPU *>(thread->getCpuPtr())
+          ->readDataAtomic(phys_addr, data, size, flags);
       return NoFault;
     }
 
@@ -96,10 +115,8 @@ protected:
       if (addr < 0x800000) {
         phys_addr += 0x800000;
       }
-      for (unsigned int i = 0; i < size; i++) {
-        thread->getSystemPtr()->physProxy.write<uint8_t>(phys_addr + i,
-                                                         data[i]);
-      }
+      static_cast<AVRCPU *>(thread->getCpuPtr())
+          ->writeDataAtomic(phys_addr, data, size, flags);
       if (res)
         *res = 0;
       return NoFault;

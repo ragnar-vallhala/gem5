@@ -38,6 +38,35 @@ AVRCPU::AVRCPU(const AVRCPUParams &p)
   }
 }
 
+/********************* MEMORY ACCESS (ATOMIC, VIA PORTS) ************/
+
+void AVRCPU::fetchAtomic(Addr paddr, uint8_t *data, unsigned size) {
+  RequestPtr req =
+      std::make_shared<Request>(paddr, size, Request::INST_FETCH,
+                                instRequestorId());
+  Packet pkt(req, MemCmd::ReadReq);
+  pkt.dataStatic(data);
+  instPort.sendAtomic(&pkt);
+}
+
+void AVRCPU::readDataAtomic(Addr paddr, uint8_t *data, unsigned size,
+                            Request::Flags flags) {
+  RequestPtr req =
+      std::make_shared<Request>(paddr, size, flags, dataRequestorId());
+  Packet pkt(req, MemCmd::ReadReq);
+  pkt.dataStatic(data);
+  dataPort.sendAtomic(&pkt);
+}
+
+void AVRCPU::writeDataAtomic(Addr paddr, const uint8_t *data, unsigned size,
+                             Request::Flags flags) {
+  RequestPtr req =
+      std::make_shared<Request>(paddr, size, flags, dataRequestorId());
+  Packet pkt(req, MemCmd::WriteReq);
+  pkt.dataStaticConst(data);
+  dataPort.sendAtomic(&pkt);
+}
+
 /********************* CPU EXECUTION ************************/
 
 void AVRCPU::wakeup(ThreadID tid) {
@@ -59,34 +88,39 @@ void AVRCPU::startup() {
 }
 
 void AVRCPU::tick() {
-  baseStats.numCycles++;
-  executeInstruction();
+  // Execute one instruction; advance time by its real cycle cost (1-4 cycles)
+  // rather than a flat 1, so simulated time reflects AVR instruction timing.
+  Cycles cost = executeInstruction();
+  baseStats.numCycles += cost;
 
   // Schedule next tick if active
   if (threadContexts[0]->status() == ThreadContext::Active) {
-    schedule(tickEvent, clockEdge(Cycles(1)));
+    schedule(tickEvent, clockEdge(cost));
   }
 }
 
-void AVRCPU::executeInstruction() {
+Cycles AVRCPU::executeInstruction() {
   ThreadContext *tc = threadContexts[0];
 
   Addr pc = tc->pcState().instAddr();
 
-  // Fetch 2 bytes from memory (AVR instructions are 16-bit little-endian)
-  uint8_t low_byte = system->physProxy.read<uint8_t>(pc);
-  uint8_t high_byte = system->physProxy.read<uint8_t>(pc + 1);
-  AVRISAInst::ExtMachInst machInst = (high_byte << 8) | low_byte;
+  // Fetch 2 bytes from program memory (AVR instructions are 16-bit
+  // little-endian), via the instruction port so the xbar sees fetch traffic.
+  uint8_t bytes[2];
+  fetchAtomic(pc, bytes, 2);
+  AVRISAInst::ExtMachInst machInst = (bytes[1] << 8) | bytes[0];
 
   // Check if it's a 32-bit instruction
   // JMP/CALL: 1001 010x xxxx 11xx (0x940c/0x940e)
   // LDS: 1001 000d dddd 0000 (0x9000)
   // STS: 1001 001d dddd 0000 (0x9200)
+  bool is32 = false;
   if (((machInst & 0xfe0c) == 0x940c) || ((machInst & 0xfe0f) == 0x9000) ||
       ((machInst & 0xfe0f) == 0x9200)) {
-    uint8_t low_byte2 = system->physProxy.read<uint8_t>(pc + 2);
-    uint8_t high_byte2 = system->physProxy.read<uint8_t>(pc + 3);
-    uint32_t second_word = (high_byte2 << 8) | low_byte2;
+    is32 = true;
+    uint8_t bytes2[2];
+    fetchAtomic(pc + 2, bytes2, 2);
+    uint32_t second_word = (bytes2[1] << 8) | bytes2[0];
     machInst = (second_word << 16) | machInst;
   }
 
@@ -111,7 +145,7 @@ void AVRCPU::executeInstruction() {
     pc_state->set(pc + 2);
     tc->pcState(*pc_state);
     delete pc_state;
-    return;
+    return Cycles(1);
   }
 
   // Execute via AVRExecContext wrapper (SimpleThread does not implement
@@ -180,6 +214,108 @@ void AVRCPU::executeInstruction() {
     tc->pcState(*pc_state);
     delete pc_state;
   }
+
+  // Cycle cost depends on the instruction and, for branches/skips, on whether
+  // control flow was taken (derived from the pc delta).
+  return instCycles(machInst, is32, pc, tc->pcState().instAddr());
+}
+
+// Cycle counts per the AVR instruction-set manual (AVRe+ core, e.g.
+// atmega328p). Most ALU/logic/move ops are 1 cycle (the default); this
+// enumerates the multi-cycle ops. Taken conditional branches and successful
+// skips cost extra, detected from the pc delta.
+Cycles
+AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
+                   Addr newPc) const
+{
+  uint16_t op = (uint16_t)machInst; // first 16-bit word holds the opcode
+
+  // ---- 32-bit (two-word) instructions ----
+  if (is32) {
+    if ((op & 0xfe0e) == 0x940c)
+      return Cycles(3); // JMP
+    if ((op & 0xfe0e) == 0x940e)
+      return Cycles(4); // CALL
+    return Cycles(2);   // LDS / STS
+  }
+
+  // ---- single-encoding control / system ops ----
+  switch (op) {
+  case 0x9508: // RET
+  case 0x9518: // RETI
+    return Cycles(4);
+  case 0x9509: // ICALL
+    return Cycles(3);
+  case 0x9409: // IJMP
+    return Cycles(2);
+  case 0x95c8: // LPM r0, Z
+  case 0x95d8: // ELPM r0, Z
+    return Cycles(3);
+  default:
+    break;
+  }
+
+  // ---- relative jump / call ----
+  if ((op & 0xf000) == 0xc000)
+    return Cycles(2); // RJMP
+  if ((op & 0xf000) == 0xd000)
+    return Cycles(3); // RCALL
+
+  // ---- program-memory loads (LPM/ELPM Rd, Z / Z+) ----
+  if ((op & 0xfe0e) == 0x9004)
+    return Cycles(3);
+
+  // ---- stack ----
+  if ((op & 0xfe0f) == 0x920f)
+    return Cycles(2); // PUSH
+  if ((op & 0xfe0f) == 0x900f)
+    return Cycles(2); // POP
+
+  // ---- data-memory loads/stores ----
+  // LD/ST X/Y/Z with post-increment / pre-decrement / displacement, and the
+  // 32-bit LDS/STS handled above. SRAM access on this core is 2 cycles.
+  if ((op & 0xd000) == 0x8000)
+    return Cycles(2); // LDD/STD and LD/ST Y/Z (opcode group 10q0..)
+  if ((op & 0xfc00) == 0x9000) {
+    uint8_t low = op & 0x000f;
+    if (low == 0x1 || low == 0x2 || low == 0x9 || low == 0xa || low == 0xc ||
+        low == 0xd || low == 0xe)
+      return Cycles(2); // LD/ST X/Y/Z (+/-)
+  }
+
+  // ---- multiply family (2 cycles) ----
+  if ((op & 0xfc00) == 0x9c00)
+    return Cycles(2); // MUL
+  if ((op & 0xff00) == 0x0200)
+    return Cycles(2); // MULS
+  if ((op & 0xff00) == 0x0300)
+    return Cycles(2); // MULSU / FMUL / FMULS / FMULSU
+
+  // ---- 16-bit immediate add/sub and I/O bit ops (2 cycles) ----
+  if ((op & 0xfe00) == 0x9600)
+    return Cycles(2); // ADIW / SBIW
+  if ((op & 0xfd00) == 0x9800)
+    return Cycles(2); // CBI / SBI
+
+  // ---- conditional skips: 1 (no skip), 2 (skip 1 word), 3 (skip 2 words) ----
+  bool isSkip = ((op & 0xfc00) == 0x1000) ||  // CPSE
+                ((op & 0xfc08) == 0xfc00) ||  // SBRC / SBRS
+                ((op & 0xfd00) == 0x9900);    // SBIC / SBIS
+  if (isSkip) {
+    Addr d = newPc - oldPc;
+    if (d == 6)
+      return Cycles(3);
+    if (d == 4)
+      return Cycles(2);
+    return Cycles(1);
+  }
+
+  // ---- conditional branches (BRBC/BRBS): 1 not-taken, 2 taken ----
+  if ((op & 0xf800) == 0xf000)
+    return (newPc == oldPc + 2) ? Cycles(1) : Cycles(2);
+
+  // ---- everything else (ALU, logic, mov, ldi, in, out, ...) ----
+  return Cycles(1);
 }
 
 } // namespace gem5
