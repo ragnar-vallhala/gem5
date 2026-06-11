@@ -10,6 +10,64 @@ decode OPCODE default Unimplemented::opcode_default({{
             0x1: Movw::movw({{ }});
             default: Unimplemented::op00_bit8_default({{ return nullptr; }});
         }
+        0x1: decode BIT8 {
+            // MULS: 0000 0010 dddd rrrr -- signed*signed, Rd,Rr in r16..r31.
+            0x0: Basic::muls({{
+                uint8_t rd_idx = 16 + ((machInst >> 4) & 0x0F);
+                uint8_t rr_idx = 16 + (machInst & 0x0F);
+                int8_t rd = (int8_t)(uint8_t)xc->tcBase()->getReg(
+                    RegId(AVRISAInst::intRegClass, rd_idx));
+                int8_t rr = (int8_t)(uint8_t)xc->tcBase()->getReg(
+                    RegId(AVRISAInst::intRegClass, rr_idx));
+                uint16_t res = (uint16_t)((int16_t)rd * (int16_t)rr);
+                xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 0),
+                                     (RegVal)(res & 0xFF));
+                xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 1),
+                                     (RegVal)((res >> 8) & 0xFF));
+                uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
+                if (res & 0x8000) sreg |= (1 << AVRISAInst::SREG_C);
+                else sreg &= ~(1 << AVRISAInst::SREG_C);
+                if (res == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+                else sreg &= ~(1 << AVRISAInst::SREG_Z);
+                xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
+            }});
+            // 0000 0011 .ddd .rrr -- MULSU / FMUL / FMULS / FMULSU,
+            // Rd,Rr in r16..r23, selected by bit7 (signed Rd) and bit3 (frac).
+            0x1: Basic::mulsu_fmul({{
+                uint8_t rd_idx = 16 + ((machInst >> 4) & 0x07);
+                uint8_t rr_idx = 16 + (machInst & 0x07);
+                uint8_t du = (uint8_t)xc->tcBase()->getReg(
+                    RegId(AVRISAInst::intRegClass, rd_idx));
+                uint8_t ru = (uint8_t)xc->tcBase()->getReg(
+                    RegId(AVRISAInst::intRegClass, rr_idx));
+                bool sgnd = (machInst >> 7) & 1; // bit7
+                bool frac = (machInst >> 3) & 1; // bit3
+                int16_t prod;
+                if (!sgnd && !frac) // MULSU: signed Rd * unsigned Rr
+                    prod = (int16_t)((int8_t)du) * (int16_t)((uint8_t)ru);
+                else if (!sgnd && frac) // FMUL: unsigned * unsigned
+                    prod = (int16_t)((uint16_t)du * (uint16_t)ru);
+                else if (sgnd && !frac) // FMULS: signed * signed
+                    prod = (int16_t)((int8_t)du) * (int16_t)((int8_t)ru);
+                else // FMULSU: signed Rd * unsigned Rr
+                    prod = (int16_t)((int8_t)du) * (int16_t)((uint8_t)ru);
+                uint8_t sreg = xc->readMiscReg(AVRISAInst::MISCREG_SREG);
+                // Carry is bit15 of the product (pre-shift for the fractional
+                // forms, which then left-shift the result by one).
+                if ((uint16_t)prod & 0x8000) sreg |= (1 << AVRISAInst::SREG_C);
+                else sreg &= ~(1 << AVRISAInst::SREG_C);
+                uint16_t res = frac ? (uint16_t)((uint16_t)prod << 1)
+                                    : (uint16_t)prod;
+                xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 0),
+                                     (RegVal)(res & 0xFF));
+                xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 1),
+                                     (RegVal)((res >> 8) & 0xFF));
+                if (res == 0) sreg |= (1 << AVRISAInst::SREG_Z);
+                else sreg &= ~(1 << AVRISAInst::SREG_Z);
+                xc->setMiscReg(AVRISAInst::MISCREG_SREG, sreg);
+            }});
+            default: Unimplemented::op00_mul_default({{ return nullptr; }});
+        }
         default: Unimplemented::op00_ident_default({{ return nullptr; }});
     }
     0x01: Cpc::cpc({{ }});
