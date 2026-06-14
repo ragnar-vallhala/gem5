@@ -10,6 +10,7 @@
 #include "sim/faults.hh"
 
 #include "base/callback.hh"
+#include "base/loader/symtab.hh"
 #include "base/output.hh"
 
 #include <algorithm>
@@ -164,12 +165,14 @@ Cycles AVRCPU::executeInstruction() {
   AVRExecContext exec_ctx(static_cast<SimpleThread *>(tc));
   Fault fault = inst->execute(&exec_ctx, nullptr);
 
+  bool committed = false;
   if (fault != NoFault) {
     fault->invoke(tc, inst);
   } else {
     insts++;
     ops++;
     opHist[inst->getName()]++; // per-mnemonic op-mix
+    committed = true;
     baseStats.numInsts++;
     baseStats.numOps++;
 
@@ -229,7 +232,12 @@ Cycles AVRCPU::executeInstruction() {
 
   // Cycle cost depends on the instruction and, for branches/skips, on whether
   // control flow was taken (derived from the pc delta).
-  return instCycles(machInst, is32, pc, tc->pcState().instAddr());
+  Cycles cyc = instCycles(machInst, is32, pc, tc->pcState().instAddr());
+  if (committed) {
+    opCycHist[inst->getName()] += (uint64_t)cyc; // cycle-weighted op-mix
+    funcHist[symbolFor(pc)]++;                    // per-function attribution
+  }
+  return cyc;
 }
 
 // Cycle counts per the AVR instruction-set manual (AVRe+ core, e.g.
@@ -331,12 +339,12 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
   return Cycles(1);
 }
 
-void AVRCPU::dumpOpMix() {
-  if (opHist.empty())
+static void dumpHist(const std::unordered_map<std::string, uint64_t> &h,
+                     const char *fname, const char *header) {
+  if (h.empty())
     return;
-  // Sort by descending count so the dominant instructions ("what they use
-  // most") come first.
-  std::vector<std::pair<std::string, uint64_t>> v(opHist.begin(), opHist.end());
+  // Sort by descending count so the dominant entries come first.
+  std::vector<std::pair<std::string, uint64_t>> v(h.begin(), h.end());
   std::sort(v.begin(), v.end(),
             [](const std::pair<std::string, uint64_t> &a,
                const std::pair<std::string, uint64_t> &b) {
@@ -345,15 +353,38 @@ void AVRCPU::dumpOpMix() {
   uint64_t total = 0;
   for (const auto &kv : v)
     total += kv.second;
-
-  OutputStream *os = simout.create("avr_opmix.txt", false);
+  OutputStream *os = simout.create(fname, false);
   std::ostream &s = *os->stream();
-  s << "# AVR per-mnemonic execution histogram (op-mix)\n";
-  s << "# columns: mnemonic count\n";
+  s << header << "\n# columns: name count\n";
   for (const auto &kv : v)
     s << kv.first << ' ' << kv.second << '\n';
   s << "# total " << total << '\n';
   simout.close(os);
+}
+
+std::string AVRCPU::symbolFor(Addr pc) {
+  auto it = pcSymCache.find(pc);
+  if (it != pcSymCache.end())
+    return it->second;
+  // SE mode keeps the loaded ELF's symbols in the global debugSymbolTable
+  // (the Process populates it); the per-workload symtab panics in SE mode.
+  std::string name = "?";
+  if (!loader::debugSymbolTable.empty()) {
+    auto sym = loader::debugSymbolTable.findNearest(pc);
+    if (sym != loader::debugSymbolTable.end())
+      name = sym->name();
+  }
+  pcSymCache[pc] = name;
+  return name;
+}
+
+void AVRCPU::dumpOpMix() {
+  dumpHist(opHist, "avr_opmix.txt",
+           "# AVR per-mnemonic instruction histogram (op-mix)");
+  dumpHist(opCycHist, "avr_opmix_cycles.txt",
+           "# AVR per-mnemonic CYCLE histogram (cycle-weighted op-mix)");
+  dumpHist(funcHist, "avr_funcmix.txt",
+           "# AVR per-function instruction histogram (PC symbol)");
 }
 
 } // namespace gem5
