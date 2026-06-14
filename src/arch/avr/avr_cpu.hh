@@ -204,11 +204,14 @@ private:
   //   opCycHist -> avr_opmix_cycles.txt  (per-mnemonic CYCLE count = where cycles go)
   //   funcHist    -> avr_funcmix.txt     (per-function instruction count, by PC symbol)
   //   funcCycHist -> avr_funccyc.txt     (per-function CYCLE count, by PC symbol)
+  //   callHist    -> avr_funccalls.txt   (per-function CALL count = #entries = op count)
   std::unordered_map<std::string, uint64_t> opHist;
   std::unordered_map<std::string, uint64_t> opCycHist;
   std::unordered_map<std::string, uint64_t> funcHist;
   std::unordered_map<std::string, uint64_t> funcCycHist;
+  std::unordered_map<std::string, uint64_t> callHist;
   std::unordered_map<Addr, std::string> pcSymCache; // PC -> symbol name (memoized)
+  std::unordered_map<Addr, bool> pcEntry;           // PC -> is a function entry addr
   std::string symbolFor(Addr pc);
   void dumpOpMix();
 };

@@ -238,6 +238,8 @@ Cycles AVRCPU::executeInstruction() {
     const std::string &fn = symbolFor(pc);       // per-function attribution
     funcHist[fn]++;
     funcCycHist[fn] += (uint64_t)cyc;
+    if (pcEntry[pc])                             // entering at the symbol = one call
+      callHist[fn]++;
   }
   return cyc;
 }
@@ -371,12 +373,20 @@ std::string AVRCPU::symbolFor(Addr pc) {
   // SE mode keeps the loaded ELF's symbols in the global debugSymbolTable
   // (the Process populates it); the per-workload symtab panics in SE mode.
   std::string name = "?";
+  bool entry = false;
   if (!loader::debugSymbolTable.empty()) {
     auto sym = loader::debugSymbolTable.findNearest(pc);
-    if (sym != loader::debugSymbolTable.end())
+    if (sym != loader::debugSymbolTable.end()) {
       name = sym->name();
+      // An "entry" = PC landing exactly on a symbol's own address: a function
+      // call OR a branch/jump to a label (optimized asm reaches hand-written
+      // blocks this way too). Count them all and keep local labels — total cost
+      // of any block is recoverable as (entries x cycles-per-entry).
+      entry = (sym->address() == pc);
+    }
   }
   pcSymCache[pc] = name;
+  pcEntry[pc] = entry;
   return name;
 }
 
@@ -389,6 +399,8 @@ void AVRCPU::dumpOpMix() {
            "# AVR per-function instruction histogram (PC symbol)");
   dumpHist(funcCycHist, "avr_funccyc.txt",
            "# AVR per-function CYCLE histogram (PC symbol)");
+  dumpHist(callHist, "avr_funccalls.txt",
+           "# AVR per-function CALL count (function entries = op count)");
 }
 
 } // namespace gem5
