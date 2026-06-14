@@ -56,8 +56,13 @@ decode OPCODE default Unimplemented::opcode_default({{
                 // forms, which then left-shift the result by one).
                 if ((uint16_t)prod & 0x8000) sreg |= (1 << AVRISAInst::SREG_C);
                 else sreg &= ~(1 << AVRISAInst::SREG_C);
-                uint16_t res = frac ? (uint16_t)((uint16_t)prod << 1)
-                                    : (uint16_t)prod;
+                // Of this 0x03xx block only MULSU (bit7=0, bit3=0) is a plain
+                // (non-fractional) product; FMUL, FMULS and FMULSU all left-shift
+                // the result by one. bit3 alone misclassifies FMULS (bit7=1,
+                // bit3=0), so shift whenever it is not MULSU.
+                bool is_mulsu = !sgnd && !frac;
+                uint16_t res = is_mulsu ? (uint16_t)prod
+                                        : (uint16_t)((uint16_t)prod << 1);
                 xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 0),
                                      (RegVal)(res & 0xFF));
                 xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 1),
@@ -177,6 +182,54 @@ decode OPCODE default Unimplemented::opcode_default({{
     }});
 
     0x27: Mul::mul({{ }});
+
+    // OPCODE 0x26: SBI/CBI/SBIC/SBIS -- 1001 10xx AAAA Abbb.
+    // I/O address A (0..31) maps to data address 0x20+A; bit b in 0..7. These
+    // address only the low 32 (bit-addressable) I/O registers, never the
+    // SPL/SPH/SREG ports (I/O 0x3d-0x3f), so no MiscReg aliasing is needed.
+    // SBI/CBI read-modify-write the I/O byte (no SREG effect); SBIC/SBIS skip
+    // the next instruction on the bit value (same convention as sbrc/sbrs).
+    0x26: decode BIT9 {
+        0x0: decode BIT8 {
+            0x0: Basic::cbi({{ // 1001 1000: clear I/O bit
+                uint8_t a = IOB_A, b = IOB_B, v;
+                xc->readMem(0x20 + a, &v, 1, 0, {});
+                v &= (uint8_t)~(1 << b);
+                xc->writeMem(&v, 1, 0x20 + a, 0, nullptr, {});
+            }});
+            0x1: Basic::sbic({{ // 1001 1001: skip if I/O bit clear
+                uint8_t a = IOB_A, b = IOB_B, v;
+                xc->readMem(0x20 + a, &v, 1, 0, {});
+                if (!((v >> b) & 1)) {
+                    gem5::AVRISAInst::PCState pc =
+                        xc->pcState().as<gem5::AVRISAInst::PCState>();
+                    pc.advance();
+                    xc->pcState(pc);
+                }
+            }});
+            default: Unimplemented::op26_cbi_sbic_default({{ return nullptr; }});
+        }
+        0x1: decode BIT8 {
+            0x0: Basic::sbi({{ // 1001 1010: set I/O bit
+                uint8_t a = IOB_A, b = IOB_B, v;
+                xc->readMem(0x20 + a, &v, 1, 0, {});
+                v |= (uint8_t)(1 << b);
+                xc->writeMem(&v, 1, 0x20 + a, 0, nullptr, {});
+            }});
+            0x1: Basic::sbis({{ // 1001 1011: skip if I/O bit set
+                uint8_t a = IOB_A, b = IOB_B, v;
+                xc->readMem(0x20 + a, &v, 1, 0, {});
+                if ((v >> b) & 1) {
+                    gem5::AVRISAInst::PCState pc =
+                        xc->pcState().as<gem5::AVRISAInst::PCState>();
+                    pc.advance();
+                    xc->pcState(pc);
+                }
+            }});
+            default: Unimplemented::op26_sbi_sbis_default({{ return nullptr; }});
+        }
+        default: Unimplemented::op26_bit9_default({{ return nullptr; }});
+    }
 
     // OPCODE 0x20-0x23, 0x28-0x2B: LDD/STD with displacement
     0x20, 0x21, 0x22, 0x23, 0x28, 0x29, 0x2a, 0x2b: decode BIT3 {

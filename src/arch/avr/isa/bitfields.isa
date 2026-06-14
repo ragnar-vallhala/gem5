@@ -29,6 +29,10 @@ def bitfield IO_AH <10:9>;
 def bitfield IO_AL <3:0>;
 def bitfield IO_D  <8:4>;
 
+// For SBI/CBI/SBIC/SBIS: 1001 10xx AAAA Abbb (A=I/O addr 0..31, b=bit 0..7)
+def bitfield IOB_A <7:3>;
+def bitfield IOB_B <2:0>;
+
 // For RJMP/RCALL: 110x KKKK KKKK KKKK
 def bitfield REL_K <11:0>;
 
