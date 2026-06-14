@@ -11,6 +11,10 @@
 #include "mem/request.hh"
 #include "sim/eventq.hh"
 
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+
 namespace gem5 {
 
 class AVRCPUParams;
@@ -194,6 +198,12 @@ private:
 
   Counter insts = 0;
   Counter ops = 0;
+
+  // Per-mnemonic execution histogram = the workload op-mix ("what they use
+  // most"). Incremented on each committed instruction; written to
+  // "<outdir>/avr_opmix.txt" at simulation exit.
+  std::unordered_map<std::string, uint64_t> opHist;
+  void dumpOpMix();
 };
 
 } // namespace gem5

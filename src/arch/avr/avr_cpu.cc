@@ -8,6 +8,14 @@
 #include "mem/packet.hh"
 #include "params/AVRCPU.hh"
 #include "sim/faults.hh"
+
+#include "base/callback.hh"
+#include "base/output.hh"
+
+#include <algorithm>
+#include <ostream>
+#include <utility>
+#include <vector>
 #include "sim/sim_exit.hh"
 #include "sim/system.hh"
 
@@ -25,6 +33,9 @@ AVRCPU::AVRCPU(const AVRCPUParams &p)
   if (!ArchInterrupts) {
     warn("AVRCPU: No valid AVRInterrupts object bound to CPU.\n");
   }
+
+  // Dump the per-mnemonic op-mix histogram when the simulation exits.
+  registerExitCallback([this]() { dumpOpMix(); });
 
   for (ThreadID tid = 0; tid < numThreads; tid++) {
     if (p.workload.size() > tid) {
@@ -158,6 +169,7 @@ Cycles AVRCPU::executeInstruction() {
   } else {
     insts++;
     ops++;
+    opHist[inst->getName()]++; // per-mnemonic op-mix
     baseStats.numInsts++;
     baseStats.numOps++;
 
@@ -317,6 +329,31 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
 
   // ---- everything else (ALU, logic, mov, ldi, in, out, ...) ----
   return Cycles(1);
+}
+
+void AVRCPU::dumpOpMix() {
+  if (opHist.empty())
+    return;
+  // Sort by descending count so the dominant instructions ("what they use
+  // most") come first.
+  std::vector<std::pair<std::string, uint64_t>> v(opHist.begin(), opHist.end());
+  std::sort(v.begin(), v.end(),
+            [](const std::pair<std::string, uint64_t> &a,
+               const std::pair<std::string, uint64_t> &b) {
+              return a.second > b.second;
+            });
+  uint64_t total = 0;
+  for (const auto &kv : v)
+    total += kv.second;
+
+  OutputStream *os = simout.create("avr_opmix.txt", false);
+  std::ostream &s = *os->stream();
+  s << "# AVR per-mnemonic execution histogram (op-mix)\n";
+  s << "# columns: mnemonic count\n";
+  for (const auto &kv : v)
+    s << kv.first << ' ' << kv.second << '\n';
+  s << "# total " << total << '\n';
+  simout.close(os);
 }
 
 } // namespace gem5
