@@ -235,7 +235,9 @@ Cycles AVRCPU::executeInstruction() {
   Cycles cyc = instCycles(machInst, is32, pc, tc->pcState().instAddr());
   if (committed) {
     opCycHist[inst->getName()] += (uint64_t)cyc; // cycle-weighted op-mix
-    funcHist[symbolFor(pc)]++;                    // per-function attribution
+    const std::string &fn = symbolFor(pc);       // per-function attribution
+    funcHist[fn]++;
+    funcCycHist[fn] += (uint64_t)cyc;
   }
   return cyc;
 }
@@ -385,6 +387,8 @@ void AVRCPU::dumpOpMix() {
            "# AVR per-mnemonic CYCLE histogram (cycle-weighted op-mix)");
   dumpHist(funcHist, "avr_funcmix.txt",
            "# AVR per-function instruction histogram (PC symbol)");
+  dumpHist(funcCycHist, "avr_funccyc.txt",
+           "# AVR per-function CYCLE histogram (PC symbol)");
 }
 
 } // namespace gem5
