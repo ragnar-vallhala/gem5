@@ -148,6 +148,8 @@ decode OPCODE default Unimplemented::opcode_default({{
             val = (xc->readMiscReg(AVRISAInst::MISCREG_SP) >> 8) & 0xFF;
         } else if (addr == 0x3f) { // SREG
             val = xc->readMiscReg(AVRISAInst::MISCREG_SREG) & 0xFF;
+        } else if (addr == 0x3b) { // RAMPZ (extended Z high byte, used by ELPM)
+            val = xc->readMiscReg(AVRISAInst::MISCREG_RAMPZ) & 0xFF;
         } else {
             xc->readMem(0x20 + addr, &val, 1, 0, {});
         }
@@ -170,6 +172,8 @@ decode OPCODE default Unimplemented::opcode_default({{
             xc->setMiscReg(AVRISAInst::MISCREG_SP, sp);
         } else if (addr == 0x3f) { // SREG
             xc->setMiscReg(AVRISAInst::MISCREG_SREG, val8);
+        } else if (addr == 0x3b) { // RAMPZ (extended Z high byte, used by ELPM)
+            xc->setMiscReg(AVRISAInst::MISCREG_RAMPZ, val8);
         } else {
             xc->writeMem(&val8, 1, 0x20 + addr, 0, nullptr, {});
         }
@@ -372,6 +376,30 @@ decode OPCODE default Unimplemented::opcode_default({{
             addr++;
             xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 30), addr & 0xFF);
             xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 31), (addr >> 8) & 0xFF);
+        }});
+        0x6: Basic::elpm_z({{ // ELPM Rd, Z  (load from RAMPZ:Z program memory)
+            uint8_t rd = REG_D;
+            RegVal zl = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 30));
+            RegVal zh = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 31));
+            RegVal rampz = xc->readMiscReg(AVRISAInst::MISCREG_RAMPZ) & 0xFF;
+            Addr addr = (rampz << 16) | (zh << 8) | zl;
+            uint8_t val;
+            xc->readMem(addr, &val, 1, Request::INST_FETCH, {});
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), (RegVal)val);
+        }});
+        0x7: Basic::elpm_z_postinc({{ // ELPM Rd, Z+  (post-increment 24-bit RAMPZ:Z)
+            uint8_t rd = REG_D;
+            RegVal zl = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 30));
+            RegVal zh = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, 31));
+            RegVal rampz = xc->readMiscReg(AVRISAInst::MISCREG_RAMPZ) & 0xFF;
+            Addr addr = (rampz << 16) | (zh << 8) | zl;
+            uint8_t val;
+            xc->readMem(addr, &val, 1, Request::INST_FETCH, {});
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd), (RegVal)val);
+            addr++;
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 30), addr & 0xFF);
+            xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, 31), (addr >> 8) & 0xFF);
+            xc->setMiscReg(AVRISAInst::MISCREG_RAMPZ, (addr >> 16) & 0xFF);
         }});
         0x9: decode BIT9 {
             0x0: Basic::ld_y_postinc({{
