@@ -44,7 +44,7 @@ def template UnknownExecute {{
     Fault
     %(class_name)s::execute(ExecContext *xc, gem5::trace::InstRecord *traceData) const
     {
-        return std::make_shared<gem5::AVRISAInst::UnknownInstFault>();
+        return std::make_shared<gem5::AVRISAInst::UnknownInstFault>(machInst);
     }
 }};
 

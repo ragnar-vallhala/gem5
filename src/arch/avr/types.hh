@@ -101,9 +101,14 @@ public:
 };
 
 class UnknownInstFault : public AVRFault {
+private:
+  MachInst _opcode;
+
 public:
-  UnknownInstFault() : AVRFault("Unknown instruction", 0) {}
+  UnknownInstFault(MachInst opcode = 0)
+      : AVRFault("Unknown instruction", 0), _opcode(opcode) {}
   const char *name() const override { return "UnknownInstFault"; }
+  MachInst opcode() const { return _opcode; }
   void invoke(ThreadContext *tc, const StaticInstPtr &inst = nullptr) override;
 };
 

@@ -24,14 +24,13 @@ bool AVRFault::returnFromFault(ThreadContext *tc) {
 }
 
 void UnknownInstFault::invoke(ThreadContext *tc, const StaticInstPtr &inst) {
-  // Warn and skip the instruction (advance by 2 bytes)
-  // to allow the simulator to continue past unimplemented insts.
-  warn("Skipping unknown AVR instruction at PC=0x%lx",
-       (uint64_t)tc->pcState().instAddr());
-  auto &apc = tc->pcState().as<PCState>();
-  PCState new_pc = apc;
-  new_pc.advance();
-  tc->pcState(new_pc);
+  // Halt completely on an unimplemented/undecoded instruction. Skipping it
+  // (the old behaviour) silently corrupts results and invalidates any
+  // workload measurement, so stop hard and name the opcode + PC so it can be
+  // implemented in src/arch/avr/isa/decoder/ before re-running.
+  panic("AVR: unimplemented/undecoded instruction opcode=0x%08x at PC=0x%lx "
+        "-- halting (implement it in src/arch/avr, then rebuild).",
+        (uint32_t)_opcode, (uint64_t)tc->pcState().instAddr());
 }
 
 // HaltFault is defined inline in faults.hh — nothing extra needed here.
