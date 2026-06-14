@@ -21,7 +21,7 @@ AVRCPU::AVRCPU(const AVRCPUParams &p)
       ArchInterrupts(p.interrupts.empty()
                          ? nullptr
                          : dynamic_cast<AVRInterrupts *>(p.interrupts[0])),
-      insts(0), ops(0) {
+      insts(0), ops(0), dataWaitStates(p.dataWaitStates) {
   if (!ArchInterrupts) {
     warn("AVRCPU: No valid AVRInterrupts object bound to CPU.\n");
   }
@@ -236,7 +236,7 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
       return Cycles(3); // JMP
     if ((op & 0xfe0e) == 0x940e)
       return Cycles(4); // CALL
-    return Cycles(2);   // LDS / STS
+    return Cycles(2 + dataWaitStates); // LDS / STS (data memory)
   }
 
   // ---- single-encoding control / system ops ----
@@ -267,20 +267,21 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
 
   // ---- stack ----
   if ((op & 0xfe0f) == 0x920f)
-    return Cycles(2); // PUSH
+    return Cycles(2 + dataWaitStates); // PUSH (data memory)
   if ((op & 0xfe0f) == 0x900f)
-    return Cycles(2); // POP
+    return Cycles(2 + dataWaitStates); // POP (data memory)
 
   // ---- data-memory loads/stores ----
   // LD/ST X/Y/Z with post-increment / pre-decrement / displacement, and the
-  // 32-bit LDS/STS handled above. SRAM access on this core is 2 cycles.
+  // 32-bit LDS/STS handled above. Internal SRAM is 2 cycles; dataWaitStates
+  // adds a uniform DSE latency penalty (see avr_cpu.hh) when configured.
   if ((op & 0xd000) == 0x8000)
-    return Cycles(2); // LDD/STD and LD/ST Y/Z (opcode group 10q0..)
+    return Cycles(2 + dataWaitStates); // LDD/STD and LD/ST Y/Z (group 10q0..)
   if ((op & 0xfc00) == 0x9000) {
     uint8_t low = op & 0x000f;
     if (low == 0x1 || low == 0x2 || low == 0x9 || low == 0xa || low == 0xc ||
         low == 0xd || low == 0xe)
-      return Cycles(2); // LD/ST X/Y/Z (+/-)
+      return Cycles(2 + dataWaitStates); // LD/ST X/Y/Z (+/-)
   }
 
   // ---- multiply family (2 cycles) ----

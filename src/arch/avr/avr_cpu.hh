@@ -35,6 +35,12 @@ public:
   Cycles instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
                      Addr newPc) const;
 
+  // Uniform extra cycles added to every data-memory access: a memory-latency
+  // DSE knob (loosely motivated by, but not a faithful model of, XMEM wait
+  // states -- it is not restricted to an external address range).
+  // 0 = validated internal-SRAM timing.
+  unsigned dataWaitStates;
+
   // Atomic memory access routed through the CPU ports so the SystemXBar
   // carries real fetch/load/store traffic. The access latency returned by
   // sendAtomic is intentionally ignored: instCycles() already models the

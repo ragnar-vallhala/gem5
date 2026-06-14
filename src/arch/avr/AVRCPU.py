@@ -22,6 +22,15 @@ class AVRCPU(BaseCPU):
     instPort = MasterPort("Instruction port to connect to memory")
     dataPort = MasterPort("Data port to connect to memory")
 
+    # Uniform extra cycles charged on every data-memory access: a memory-latency
+    # design-space-exploration knob. Loosely motivated by the AVR external-memory
+    # interface (XMEM) wait states, but applied uniformly to all data accesses
+    # rather than only to an external address range, so it is an abstraction, not
+    # a faithful XMEM model. 0 keeps the validated internal-SRAM timing.
+    dataWaitStates = Param.Unsigned(
+        0, "Uniform extra cycles per data-memory access"
+    )
+
     ArchDecoder = AVRDecoder
     ArchMMU = AVRMMU
     ArchInterrupts = AVRInterrupts

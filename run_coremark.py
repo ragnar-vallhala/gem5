@@ -29,6 +29,9 @@ system.mem_mode = "atomic"
 system.mem_ranges = [AddrRange("128MB")]
 
 system.cpu = AVRCPU()
+# M1 memory-hierarchy study: external-memory wait states per data access,
+# selectable via the AVR_DATA_WS env var (0 = validated internal-SRAM timing).
+system.cpu.dataWaitStates = int(os.environ.get("AVR_DATA_WS", "0"))
 system.membus = SystemXBar()
 
 # Use icache_port and dcache_port
