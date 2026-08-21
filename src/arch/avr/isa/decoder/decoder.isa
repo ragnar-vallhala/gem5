@@ -559,6 +559,30 @@ decode OPCODE default Unimplemented::opcode_default({{
                 xc->tcBase()->setReg(RegId(AVRISAInst::intRegClass, rd_idx), result);
             }});
             0x3: Inc::inc({{ }});
+
+            // ---- AVR-X floating-point extension (32-bit escape) ----
+            // Rd/Rr name 4-byte little-endian groups, matching the avr-gcc
+            // float ABI (arg0/result R22-R25, arg1 R18-R21), so the softfloat
+            // entry points can be replaced by a stub that is one FP
+            // instruction plus a ret, with no compiler change and no change to
+            // any workload.
+            0x4: decode FP_OP {
+                format Basic4Byte {
+                    0x0: favr_fadd({{
+                        FP_BINOP(FP_RD, FP_RR, a + b);
+                    }});
+                    0x1: favr_fsub({{
+                        FP_BINOP(FP_RD, FP_RR, a - b);
+                    }});
+                    0x2: favr_fmul({{
+                        FP_BINOP(FP_RD, FP_RR, a * b);
+                    }});
+                    0x3: favr_fdiv({{
+                        FP_BINOP(FP_RD, FP_RR, a / b);
+                    }});
+                }
+                default: Unimplemented::favr_default({{ return nullptr; }});
+            }
             0x5: Basic::asr({{
                 uint8_t rd_idx = REG_D;
                 RegVal val = xc->tcBase()->getReg(RegId(AVRISAInst::intRegClass, rd_idx));

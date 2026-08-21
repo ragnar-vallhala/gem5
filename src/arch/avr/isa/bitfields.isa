@@ -70,3 +70,16 @@ def bitfield BIT12 <12:12>;
 def bitfield BIT13 <13:13>;
 def bitfield BIT14 <14:14>;
 def bitfield BIT15 <15:15>;
+
+// ---- AVR-X floating-point escape (32-bit) ----
+// First word:  1001 010f ffff 0100   (f = FP_OP, 5 bits)
+//   REG_R == 0x4 with BIT9 == 0 is reserved in the real AVR map: its
+//   neighbours are COM(0) NEG(1) SWAP(2) INC(3) ASR(5) LSR(6) ROR(7), and
+//   0x4 is unallocated, so this escape collides with nothing on silicon.
+// Second word: ------ rrrrr ddddd   (two 5-bit register selectors)
+//   machInst is [second_word:first_word], so the second word starts at bit 16.
+// Operands are 4-byte little-endian groups at Rd..Rd+3 and Rr..Rr+3, which is
+// what the avr-gcc float ABI already hands us (R22-R25 and R18-R21).
+def bitfield FP_OP <8:4>;
+def bitfield FP_RD <20:16>;
+def bitfield FP_RR <25:21>;

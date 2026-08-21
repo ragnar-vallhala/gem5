@@ -44,6 +44,10 @@ public:
   // states -- it is not restricted to an external address range).
   // 0 = validated internal-SRAM timing.
   unsigned dataWaitStates;
+  // AVR-X FP latencies (model inputs; see AVRCPU.py -- not silicon-validated)
+  unsigned fpAddCycles;
+  unsigned fpMulCycles;
+  unsigned fpDivCycles;
 
   // Atomic memory access routed through the CPU ports so the SystemXBar
   // carries real fetch/load/store traffic. The access latency returned by

@@ -30,7 +30,9 @@ AVRCPU::AVRCPU(const AVRCPUParams &p)
       ArchInterrupts(p.interrupts.empty()
                          ? nullptr
                          : dynamic_cast<AVRInterrupts *>(p.interrupts[0])),
-      insts(0), ops(0), dataWaitStates(p.dataWaitStates) {
+      insts(0), ops(0), dataWaitStates(p.dataWaitStates),
+      fpAddCycles(p.fpAddCycles), fpMulCycles(p.fpMulCycles),
+      fpDivCycles(p.fpDivCycles) {
   if (!ArchInterrupts) {
     warn("AVRCPU: No valid AVRInterrupts object bound to CPU.\n");
   }
@@ -127,8 +129,10 @@ Cycles AVRCPU::executeInstruction() {
   // LDS: 1001 000d dddd 0000 (0x9000)
   // STS: 1001 001d dddd 0000 (0x9200)
   bool is32 = false;
+  // AVR-X FP escape: 1001 010f ffff 0100 -- a second word carries the two
+  // register selectors (see isa/bitfields.isa).
   if (((machInst & 0xfe0c) == 0x940c) || ((machInst & 0xfe0f) == 0x9000) ||
-      ((machInst & 0xfe0f) == 0x9200)) {
+      ((machInst & 0xfe0f) == 0x9200) || ((machInst & 0xfe0f) == 0x9404)) {
     is32 = true;
     uint8_t bytes2[2];
     fetchAtomic(pc + 2, bytes2, 2);
@@ -260,6 +264,23 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
       return Cycles(3); // JMP
     if ((op & 0xfe0e) == 0x940e)
       return Cycles(4); // CALL
+    // AVR-X FP escape (1001 010f ffff 0100). Charged as the datapath latency
+    // plus one extra fetch cycle for the second instruction word -- the real
+    // cost of bolting a 3-operand op onto a 16-bit instruction set, which must
+    // be paid before any speedup is quoted.
+    if ((op & 0xfe0f) == 0x9404) {
+      switch ((op >> 4) & 0x1f) {
+      case 0x0:
+      case 0x1:
+        return Cycles(1 + fpAddCycles); // FADD.S / FSUB.S
+      case 0x2:
+        return Cycles(1 + fpMulCycles); // FMUL.S
+      case 0x3:
+        return Cycles(1 + fpDivCycles); // FDIV.S
+      default:
+        break;
+      }
+    }
     return Cycles(2 + dataWaitStates); // LDS / STS (data memory)
   }
 
