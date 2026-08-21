@@ -277,6 +277,17 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
         return Cycles(1 + fpMulCycles); // FMUL.S
       case 0x3:
         return Cycles(1 + fpDivCycles); // FDIV.S
+      case 0x4: // FCMP.S
+      case 0x5: // FCVT.SI2F
+      case 0x6: // FCVT.UI2F
+      case 0x7: // FCVT.F2SI
+      case 0x8: // FCVT.F2UI
+        // Compare and convert share the add datapath's latency: they are the
+        // same align/normalise work, and giving them a separate knob would add
+        // a parameter the study cannot inform.
+        return Cycles(1 + fpAddCycles);
+      case 0x9:
+        return Cycles(2); // FNEG.S -- a sign-bit flip, fetch plus one
       default:
         break;
       }

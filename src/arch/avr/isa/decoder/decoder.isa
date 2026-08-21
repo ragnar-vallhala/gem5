@@ -580,6 +580,30 @@ decode OPCODE default Unimplemented::opcode_default({{
                     0x3: favr_fdiv({{
                         FP_BINOP(FP_RD, FP_RR, a / b);
                     }});
+                    // One compare serves all seven libgcc comparison entry
+                    // points -- they differ only in how the caller reads the
+                    // sign of a shared three-way result.
+                    0x4: favr_fcmp({{
+                        FP_CMP(FP_RD, FP_RR, FP_RT);
+                    }});
+                    // Conversions. Rd is both source and destination; Rr is
+                    // unused. These are what remained on the profile after
+                    // add/sub/mul/div went to hardware.
+                    0x5: favr_fcvt_si2f({{
+                        FP_UNOP(FP_RD, float _o = (float)(int32_t)_ua, _o);
+                    }});
+                    0x6: favr_fcvt_ui2f({{
+                        FP_UNOP(FP_RD, float _o = (float)(uint32_t)_ua, _o);
+                    }});
+                    0x7: favr_fcvt_f2si({{
+                        FP_UNOP(FP_RD, int32_t _o = (int32_t)a, _o);
+                    }});
+                    0x8: favr_fcvt_f2ui({{
+                        FP_UNOP(FP_RD, uint32_t _o = (uint32_t)a, _o);
+                    }});
+                    0x9: favr_fneg({{
+                        FP_UNOP(FP_RD, float _o = -a, _o);
+                    }});
                 }
                 default: Unimplemented::favr_default({{ return nullptr; }});
             }
