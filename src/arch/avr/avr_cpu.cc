@@ -300,6 +300,8 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
         return Cycles(1 + intDivCycles);
       case 0xf: // FMAC.S -- one multiply-add, single rounding
         return Cycles(1 + fpMulCycles);
+      case 0x13: // FSQRT.S -- iterative, priced like divide
+        return Cycles(1 + fpDivCycles);
       case 0x10: // IMUL32 -- wider multiplier, charged 2x the 16-bit one
         return Cycles(1 + 2 * intMulCycles);
       case 0x11: // IDIVMOD32.U

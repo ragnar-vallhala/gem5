@@ -641,6 +641,14 @@ decode OPCODE default Unimplemented::opcode_default({{
                     0x12: favr_idivmod32_s({{
                         INT_DIVMOD32(FP_RD, FP_RR, FP_RT, true);
                     }});
+                    // Square root. Needed as much for linkage as for speed:
+                    // avr-libc's sqrt() is the last consumer of libgcc's
+                    // shared softfloat internals once the arithmetic entry
+                    // points are replaced, and leaving it behind produces a
+                    // half-replaced library (see plans/06).
+                    0x13: favr_fsqrt({{
+                        FP_UNOP(FP_RD, float _o = std::sqrt(a), _o);
+                    }});
                 }
                 default: Unimplemented::favr_default({{ return nullptr; }});
             }
