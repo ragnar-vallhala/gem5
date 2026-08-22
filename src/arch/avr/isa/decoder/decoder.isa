@@ -604,6 +604,43 @@ decode OPCODE default Unimplemented::opcode_default({{
                     0x9: favr_fneg({{
                         FP_UNOP(FP_RD, float _o = -a, _o);
                     }});
+                    // Integer 16x16->32 multiply, all three signedness
+                    // combinations libgcc provides. This is what the inference
+                    // kernels spend their helper cycles on; an FP unit does
+                    // nothing for them.
+                    0xa: favr_imul_ss({{
+                        INT_MUL(FP_RD, FP_RR, FP_RT, true, true);
+                    }});
+                    0xb: favr_imul_uu({{
+                        INT_MUL(FP_RD, FP_RR, FP_RT, false, false);
+                    }});
+                    0xc: favr_imul_su({{
+                        INT_MUL(FP_RD, FP_RR, FP_RT, true, false);
+                    }});
+                    // 16/16 divide returning quotient and remainder together,
+                    // as libgcc's __udivmodhi4/__divmodhi4 do.
+                    0xd: favr_idivmod_u({{
+                        INT_DIVMOD(FP_RD, FP_RR, FP_RT, false);
+                    }});
+                    0xe: favr_idivmod_s({{
+                        INT_DIVMOD(FP_RD, FP_RR, FP_RT, true);
+                    }});
+                    // Fused multiply-add. No unmodified C reaches this -- see
+                    // the note in utility.hh -- so it is measured separately.
+                    0xf: favr_fmac({{
+                        FP_FMAC(FP_RD, FP_RR, FP_RT);
+                    }});
+                    // 32-bit integer helpers. These, not the 16-bit ones,
+                    // dominate fasta and prime (~90% of their cycles).
+                    0x10: favr_imul32({{
+                        INT_MUL32(FP_RD, FP_RR, FP_RT);
+                    }});
+                    0x11: favr_idivmod32_u({{
+                        INT_DIVMOD32(FP_RD, FP_RR, FP_RT, false);
+                    }});
+                    0x12: favr_idivmod32_s({{
+                        INT_DIVMOD32(FP_RD, FP_RR, FP_RT, true);
+                    }});
                 }
                 default: Unimplemented::favr_default({{ return nullptr; }});
             }

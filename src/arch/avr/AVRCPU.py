@@ -40,6 +40,10 @@ class AVRCPU(BaseCPU):
     fpAddCycles = Param.Unsigned(4, "Cycles for AVR-X FADD.S / FSUB.S")
     fpMulCycles = Param.Unsigned(5, "Cycles for AVR-X FMUL.S")
     fpDivCycles = Param.Unsigned(16, "Cycles for AVR-X FDIV.S")
+    # Integer MAC / divide. A 16x16 multiplier is cheap enough that 2 cycles
+    # (the base MUL's cost) is the natural default; divide is iterative.
+    intMulCycles = Param.Unsigned(2, "Cycles for AVR-X IMUL.*")
+    intDivCycles = Param.Unsigned(12, "Cycles for AVR-X IDIVMOD.*")
 
     ArchDecoder = AVRDecoder
     ArchMMU = AVRMMU

@@ -48,6 +48,8 @@ public:
   unsigned fpAddCycles;
   unsigned fpMulCycles;
   unsigned fpDivCycles;
+  unsigned intMulCycles;
+  unsigned intDivCycles;
 
   // Atomic memory access routed through the CPU ports so the SystemXBar
   // carries real fetch/load/store traffic. The access latency returned by

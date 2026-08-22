@@ -32,7 +32,8 @@ AVRCPU::AVRCPU(const AVRCPUParams &p)
                          : dynamic_cast<AVRInterrupts *>(p.interrupts[0])),
       insts(0), ops(0), dataWaitStates(p.dataWaitStates),
       fpAddCycles(p.fpAddCycles), fpMulCycles(p.fpMulCycles),
-      fpDivCycles(p.fpDivCycles) {
+      fpDivCycles(p.fpDivCycles), intMulCycles(p.intMulCycles),
+      intDivCycles(p.intDivCycles) {
   if (!ArchInterrupts) {
     warn("AVRCPU: No valid AVRInterrupts object bound to CPU.\n");
   }
@@ -288,6 +289,22 @@ AVRCPU::instCycles(AVRISAInst::ExtMachInst machInst, bool is32, Addr oldPc,
         return Cycles(1 + fpAddCycles);
       case 0x9:
         return Cycles(2); // FNEG.S -- a sign-bit flip, fetch plus one
+      case 0xa: // IMUL.SS
+      case 0xb: // IMUL.UU
+      case 0xc: // IMUL.SU
+        // A 16x16 multiplier is far cheaper than an FP datapath; charged at
+        // the base MUL's 2 cycles plus the escape fetch.
+        return Cycles(1 + intMulCycles);
+      case 0xd: // IDIVMOD.U
+      case 0xe: // IDIVMOD.S
+        return Cycles(1 + intDivCycles);
+      case 0xf: // FMAC.S -- one multiply-add, single rounding
+        return Cycles(1 + fpMulCycles);
+      case 0x10: // IMUL32 -- wider multiplier, charged 2x the 16-bit one
+        return Cycles(1 + 2 * intMulCycles);
+      case 0x11: // IDIVMOD32.U
+      case 0x12: // IDIVMOD32.S
+        return Cycles(1 + 2 * intDivCycles);
       default:
         break;
       }
